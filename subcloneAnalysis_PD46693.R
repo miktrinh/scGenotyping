@@ -1,63 +1,35 @@
-# Subclone Analysis in PD46693
+# DGE of majorCl vs subCl in PD46693
 
 # Load Libraries
 library(tidyverse)
 library(Seurat)
 
-# Subset for GOSH25 only ####
-nb.srat = readRDS('/lustre/scratch117/casm/team274/mt22/CN_methods/NB_ann.rds')
-gosh25 = subset(nb.srat,subset = PD_ID == 'PD46693')
-
-# Clustering GOSH25
-gosh25 = NormalizeData(gosh25)
-gosh25 = FindVariableFeatures(gosh25)
-gosh25 = ScaleData(gosh25, features = rownames(gosh25))
-gosh25 = RunPCA(gosh25, npcs = 75)
-ElbowPlot(gosh25, ndims = 75)
-gosh25 = FindNeighbors(gosh25, dims=1:60)
-gosh25 = FindClusters(gosh25,resolution = 3)
-gosh25 = RunUMAP(gosh25, dims=1:55,n.neighbors = 30,min.dist = 0.6)
-gosh25$AI_sc_call
-sum(is.na(gosh25$chr4))
-gosh25$chr4 = as.numeric(gosh25$chr4)
-FeaturePlot(gosh25,features = 'chr4',cols = brewer.pal(4,'RdBu')[c(3:1)])
-DimPlot(gosh25,group.by = 'chr4')
-
-
-gosh25 = readRDS('/lustre/scratch117/casm/team274/mt22/CN_methods/alleleIntegrator_output/NB/GOSH25_probAbb.rds')
-DimPlot(gosh25,group.by = 'cell_type')
-FeaturePlot(gosh25,features = 'chr4.probAbberant')
-m=match(rownames(gosh25@meta.data),rownames(srat@meta.data))
-sum(is.na(m))
-gosh25@meta.data$AI_sc_call2 = srat@meta.data$call
-# Add chr4 probs
-pp = abbSegProb(gCnts,od,segs = gCnts@metadata$segs,abbFrac = 'tumFrac',globalOnoly=F)  
-pp.subCl = pp[names(pp) == '4.1']
-m = match(pp.subCl$cellID,gosh25@meta.data$cellID)
-sum(is.na(m))
-gosh25@meta.data$chr4.probAbberant2[m] = pp.subCl$probAbberant
+# Import PD46693 sratObj
+pd46693 = readRDS('/lustre/scratch117/casm/team274/mt22/CN_methods/alleleIntegrator_output/NB/PD46693_probAbb.rds')
+DimPlot(pd46693,group.by = 'cell_type')
+FeaturePlot(pd46693,features = 'chr4.probAbberant')
 
 
 # Subset for Tumour population only ####
-clonal = subset(gosh25,subset = cell_type == 'Tumour')
+tumour = subset(pd46693,subset = cell_type == 'Tumour')
 
 # Clustering
-clonal = NormalizeData(clonal)
-clonal = FindVariableFeatures(clonal)
-clonal = ScaleData(clonal, features = rownames(clonal))
-clonal = RunPCA(clonal, npcs = 75)
-ElbowPlot(clonal, ndims = 75)
-clonal = FindNeighbors(clonal, dims=1:60)
-clonal = FindClusters(clonal,resolution = 3)
-clonal = RunUMAP(clonal, dims=1:55,n.neighbors = 30,min.dist = 0.6)
-clonal$AI_sc_call
-sum(is.na(clonal$chr4.probAbberant))
-clonal$chr4.probAbberant = as.numeric(clonal$chr4.probAbberant)
-FeaturePlot(clonal,features = 'chr4.probAbberant',cols = brewer.pal(5,'RdBu')[4:1],pt.size = 0.4)+ggtitle('GOSH25 - Tumour Subclone')
+tumour = NormalizeData(tumour)
+tumour = FindVariableFeatures(tumour)
+tumour = ScaleData(tumour, features = rownames(tumour))
+tumour = RunPCA(tumour, npcs = 75)
+ElbowPlot(tumour, ndims = 75)
+tumour = FindNeighbors(tumour, dims=1:60)
+tumour = FindClusters(tumour,resolution = 3)
+tumour = RunUMAP(tumour, dims=1:55,n.neighbors = 30,min.dist = 0.6)
 
-table(clonal$clonalType,clonal$clonalType2)
-clonal$clonalType = ifelse(clonal$chr4.probAbberant > 0.99,'Minor',ifelse(clonal$chr4.probAbberant <0.01,'Major','uncalled'))
-clonal$clonalType2 = ifelse(clonal$chr4.probAbberant2 > 0.99,'Minor',ifelse(clonal$chr4.probAbberant2 <0.01,'Major','uncalled'))
+sum(is.na(tumour$chr4.probAbberant))
+tumour$chr4.probAbberant = as.numeric(tumour$chr4.probAbberant)
+FeaturePlot(tumour,features = 'chr4.probAbberant',cols = brewer.pal(5,'RdBu')[4:1],pt.size = 0.4)+ggtitle('PD46693 - Tumour')
+
+table(tumour$clonalType,tumour$clonalType)
+tumour$clonalType = ifelse(tumour$chr4.probAbberant > 0.99,'Minor',ifelse(tumour$chr4.probAbberant <0.01,'Major','uncalled'))
+
 
 # Allele Integrator Dot plots for the major and minor clones ####
 
@@ -227,7 +199,7 @@ for(i in c('Major','Minor')){
     
   }
   
-  saveFig(file.path(res,paste0('GOSH25_',i,'clone_',cov,'_new')),plotFun,width = 6,height = 1.4,res=500)
+  saveFig(file.path(res,paste0('PD46693_',i,'clone_',cov,'_new')),plotFun,width = 6,height = 1.4,res=500)
 }
 
 
@@ -235,58 +207,17 @@ for(i in c('Major','Minor')){
 
 
 #######========================================================================================================
-clonal = subset(gosh25,subset = cell_type == 'Tumour')
-clonal$clonalType = ifelse(clonal$chr4.probAbberant > 0.99,'Minor',ifelse(clonal$chr4.probAbberant <0.01,'Major','uncalled'))
-Idents(clonal) = 'clonalType'
-majCellIDs = rownames(clonal@meta.data[clonal@meta.data$clonalType == 'Major',])
-subCellIDs = rownames(clonal@meta.data[clonal@meta.data$clonalType == 'Minor',])
+tumour = subset(pd46693,subset = cell_type == 'Tumour')
+tumour$clonalType = ifelse(tumour$chr4.probAbberant > 0.99,'Minor',ifelse(tumour$chr4.probAbberant <0.01,'Major','uncalled'))
+Idents(tumour) = 'clonalType'
+majCellIDs = rownames(tumour@meta.data[tumour@meta.data$clonalType == 'Major',])
+subCellIDs = rownames(tumour@meta.data[tumour@meta.data$clonalType == 'Minor',])
 
 # Get expression matrices for major clone and subclone
-major.mtx = clonal@assays$RNA@counts[,colnames(clonal@assays$RNA@counts) %in% majCellIDs]
-minor.mtx = clonal@assays$RNA@counts[,colnames(clonal@assays$RNA@counts) %in% subCellIDs]
+major.mtx = tumour@assays$RNA@counts[,colnames(tumour@assays$RNA@counts) %in% majCellIDs]
+minor.mtx = tumour@assays$RNA@counts[,colnames(tumour@assays$RNA@counts) %in% subCellIDs]
 m=match(rownames(major.mtx),rownames(minor.mtx))
 sum(is.na(m))
-
-
-
-pseudoCnt = data.frame(majCnt = rowSums(major.mtx),minCnt = rowSums(minor.mtx)[m])
-#pseudoCnt = pseudoCnt[rowSums(pseudoCnt) >0,]
-# Normalize by read depth
-pseudoCnt = sweep(pseudoCnt,2,colSums(pseudoCnt),'/')
-#pseudoCnt = pseudoCnt*1e6
-# Transform the count
-pseudoCnt$logMaj = log2(pseudoCnt$majCnt)
-pseudoCnt$logMin = log2(pseudoCnt$minCnt)
-pseudoCnt$M = pseudoCnt$logMaj - pseudoCnt$logMin
-
-#pseudoCnt$A = (pseudoCnt$logMaj + pseudoCnt$logMin)/2
-pseudoCnt$A = log((pseudoCnt$majCnt + pseudoCnt$minCnt)/2)
-plot(pseudoCnt$A,pseudoCnt$M)
-
-#### Differential Gene Expression analysis between subClone and MajClone ####
-#-- NOT IN USE ----- <Using Seurat FindMarkers function> ####
-Idents(clonal) = 'clonalType'
-deseq2 <- FindMarkers(clonal, ident.1 = 'Major', ident.2 = 'Minor', test.use = 'DESeq2',
-                      min.pct = 0, logfc.threshold = 0, pseudocount.use = 0, min.diff.pct = 0)
-deseq2$sig = ifelse(deseq2$p_val_adj<0.05,T,F)
-deseq2.noMT = deseq2[!grepl('^MT-',rownames(deseq2)),]
-deseq2.noMT$padj2 = p.adjust(deseq2.noMT$p_val,method='BH')
-deseq2.noMT = deseq2.noMT[!is.na(deseq2.noMT$padj2),]
-sum(deseq2.noMT$padj2 < 0.05)
-
-removed.genes = rownames(clonal)[!rownames(clonal)%in%rownames(srat_ann3)]
-deseq2.sub = deseq2[!rownames(deseq2) %in% removed.genes,]
-deseq2.sub$padj2 = p.adjust(deseq2.sub$p_val,method='BH')
-deseq2.sub = deseq2.sub[!is.na(deseq2.sub$padj2),]
-sum(deseq2.sub$padj2 < 0.05)
-
-deg.wilcox = FindMarkers(clonal, ident.1 = 'major',ident.2 = 'minor',logfc.threshold = 0.01,min.pct = 0.05)
-deg$p.adj.sig = deg$p_val_adj < 0.05
-deg$abs_avglog2FC = abs(deg$avg_log2FC)
-
-deg.deseq2 = FindMarkers(clonal, ident.1 = 'major',ident.2 = 'minor',logfc.threshold = 0.01,min.pct = 0.05,test.use = 'DESeq2')
-deg.deseq2$p.adj.sig = deg.deseq2$p_val_adj < 0.05
-deg.deseq2$abs_avglog2FC = abs(deg.deseq2$avg_log2FC)
 
 # Pseudo Bulk analysis for all Genes ####
 library(DESeq2)
@@ -301,23 +232,25 @@ dds
 featureData <- data.frame(gene=rownames(cts))
 mcols(dds) <- DataFrame(mcols(dds), featureData)
 mcols(dds)
+# Remove genes with low counts
 keep <- rowSums(counts(dds)) >= 10
 dds <- dds[keep,]
+# Run DESeq2
 dds <- DESeq(dds)
 results <- results(dds)
 results
 plotMA(results)
 
-pb.out = results %>% as.data.frame() %>% filter(!is.na(padj))
-pb.out$sig = ifelse(pb.out$padj < 0.05,T,F)
-sigAll = pb.out[pb.out$padj < 0.05,]
-View(sigAll)
-sigGenes = rownames(pb.out)[pb.out$padj <0.05]
-c('NTRK1', 'BCL11A', 'TH' , 'CHGB','HMX1') %in% sigGenes
-a = pb.out[rownames(pb.out) %in% c('NTRK1', 'BCL11A', 'TH' , 'CHGB','HMX1'),]
+res.filtered = results %>% as.data.frame() %>% filter(!is.na(padj))
+res.filtered$sig = ifelse(res.filtered$padj < 0.05,T,F)
+sigGenesAll = rownames(res.filtered)[res.filtered$padj <0.05]
+
+
 # DEG for Transcription Factor only ####
+# Get all TF gene names
 TF = read.delim('~/Homo_sapiens_transcription_factors_gene_list.txt',sep = '\t')
 gene.df = read.csv('~/Hsap_gene_list.csv')
+# Match gene names and EnsID
 TF = TF[TF$Ensembl.ID %in% gene.df$ensembl_id,]
 m <- match(TF$Ensembl.ID, gene.df$ensembl_id)
 sum(is.na(m))
@@ -325,99 +258,33 @@ TF$gene_name <- gene.df$gene[m]
 TF$chr <- gene.df$chr_name[m]
 
 
-tf.res = pb.out[rownames(pb.out) %in% TF$gene_name,]
+tf.res = res.filtered[rownames(res.filtered) %in% TF$gene_name,]
 tf.res$padj2 = p.adjust(tf.res$pvalue,method='BH')
-tf.sig = rownames(tf.res[tf.res$padj2 < 0.05,])
+tf.res$sig = ifelse(tf.res$padj2 < 0.05,TRUE,FALSE)
+tf.sigGenes = rownames(tf.res[tf.res$padj2 < 0.05,])
+#res.filtered$TF.sig = ifelse(rownames(res.filtered) %in% tf.sigGenes,T,F)
 
+## MA plot ##
+pseudoCnt = data.frame(majCnt = rowSums(major.mtx),minCnt = rowSums(minor.mtx)[m])
+# Normalize by read depth
+pseudoCnt = sweep(pseudoCnt,2,colSums(pseudoCnt),'/')
+# Transform the count
+pseudoCnt$logMaj = log2(pseudoCnt$majCnt)
+pseudoCnt$logMin = log2(pseudoCnt$minCnt)
+pseudoCnt$M = pseudoCnt$logMaj - pseudoCnt$logMin
+pseudoCnt$A = log((pseudoCnt$majCnt + pseudoCnt$minCnt)/2)
 
-
-
-
-
-
-pseudoCnt$sig = ifelse(rownames(pseudoCnt) %in% c(sigGenes,tf.sig),'yes','no')
-pseudoCnt$sig = ifelse(rownames(pseudoCnt) %in% c(sigGenes,tf.sig),'yes','no')
-pseudoCnt$sig = ifelse(rownames(pseudoCnt) %in% c('NTRK1', 'BCL11A', 'TH', 'CHGB', 'HMX1'),'red',as.character(pseudoCnt$sig))
-sigcol = c(yes = 'black',no='lightgrey',red = 'red')
-
-
-
-plotFun = function(noFrame=FALSE,noPlot=FALSE){
-  par(mfrow=c(1,1),mar=c(1,1,0.2,0.1))
-  plot(pseudoCnt$A,pseudoCnt$M,
-       las=1,pch=19,cex=0.02,col=sigcol[pseudoCnt$sig],
-       #xlim =c(-3.4,-2.6),ylim=c(-0.01,0.015),
-       #xlim =c(-3,16),ylim=c(-4.5,5.5),
-       #type='n',
-       xlab= 'Mean log2 normalized count',ylab='log2 FC',
-       #xaxt='n',yaxt='n',
-       frame.plot=T)
-  #mtext('Mean log2 normalized count',side = 1,line = 0.1,cex = 0.7)
-  #mtext('log2 FC',side = 2,line = 0.1,cex = 0.7)
-  
-  segments(x0=-30,x1 = 0, 
-           y0=0, y1=0,
-           col = 'black')
-  points(pseudoCnt$A,pseudoCnt$M,pch=19,cex=0.02,col=sigcol[pseudoCnt$sig])
-  points(pseudoCnt[pseudoCnt$sig == 'red',]$A,pseudoCnt[pseudoCnt$sig == 'red',]$M,pch=19,cex=0.02,col=sigcol[pseudoCnt[pseudoCnt$sig == 'red',]$sig])
-  text(pseudoCnt[pseudoCnt$lab == 'yes',]$M~pseudoCnt[pseudoCnt$lab == 'yes',]$A,
-       labels=rownames(pseudoCnt[pseudoCnt$lab == 'yes',]),
-       data=pseudoCnt, cex=0.4, font=1,pos=1)
-}
-
-saveFig(file.path(resd,paste0('GOSH25_MAplot')),plotFun,width = 3.5,height = 2.4,res=500)
-pb.out$gene = rownames(pb.out)
-write.csv(pb.out,'~/CN_method_tmp/figures/GOSH25_MAplot_allGenes_pseudobulkDESeq2.csv')
-
-
-
-
-
-
-
-
-
-
-### SCRAPS---------------------
-
-pseudoCnt$col = ifelse(rownames(pseudoCnt) %in% rownames(deseq2[deseq2$sig==T,]),'black','red')
-pseudoCnt$col = ifelse(rownames(pseudoCnt) %in% rownames(deseq2[deseq2$sig==T,]),'black','red')
-
-library(ggrepel)
+# Match all Significantly DE genes
+pseudoCnt$sig = ifelse(rownames(pseudoCnt) %in% c('NTRK1', 'BCL11A', 'TH', 'CHGB', 'HMX1'),'red',
+                       ifelse(rownames(pseudoCnt) %in% c(sigGenesAll,tf.sigGenes),'yes','no'))
 pseudoCnt$gene = rownames(pseudoCnt)
-ggplot(pseudoCnt,aes(x=A,y=M))+
-  geom_point(size=0.1)
-ggplot(pseudoCnt,aes(x=A,y=M,col = col2))+
-  geom_point(size=0.1)+
-  geom_text_repel(data=subset(pseudoCnt,col2=='red'), aes(A,M,label=gene),
-                  point.padding = 0.5, col = 'blue', box.padding = 2.5, size = 3.5,max.overlaps = 100)
+write_delim(pseudoCnt,'../../PD46693_dataForMAplot.txt',delim = '\t',col_names = T)
 
+res.filtered$gene = rownames(res.filtered)
+tf.res$gene = rownames(tf.res)
+write_delim(res.filtered,'../../PD46693_allGenes_pseudobulkDESeq2_all.txt',delim = '\t',col_names = T)
+write_delim(tf.res[tf.res$sig==T,],'../../PD46693_TF_pseudobulkDESeq2_sigOnly.txt',delim = '\t',col_names = T)
 
-
-pb.out = a[!rownames(a) %in% removed.genes,]
-a2$padj2 = p.adjust(a2$pvalue,method = 'BH')
-sum(a2$padj2 < 0.05)
-sum(a$padj < 0.01 & a$abslFC > 0.33)
-a2 = a[rownames(a) %in% sigGenes,]
-sigGenes = rownames(a[a$padj < 0.01,])
-length(sigGenes)
-sum(geneserr %in% sigGenes)
-length(geneserr)
-geneserr[!geneserr%in%sigGenes]
-'NTRK1' %in% sigGenes
-
-res2 <- results(dds, name="condition_treated_vs_untreated")
-res2 <- results(dds, contrast=c("condition","majCl","minCl"))
-
-
-
-geneserr = c('HES4','NTRK1','BCL11A','COX5B','TMEFF2','ITM2C','ECEL1','CCNI','SPP1','NAP1L5','EDIL3','GFRA3','CDC5L','NCOA7','NDUFA4','RAMP3','VSTM2A','PCSK1N','DUSP26','NDUFB9','SPTAN1','DBH','TH','CD44','RGS10','CD9','TUBA1B','FAIM2','DAD1','PSME2','CHGA','PPP2R5C','PDIA3','ANXA2','TPPP3','PMP22','SCPEP1','PMAIP1','CHGB')
-
-
-
-
-
-
-
-
+write_delim(res.filtered,'~/CN_method_tmp/PD46693_allGenes_pseudobulkDESeq2_all.txt',delim = '\t',col_names = T)
+write_delim(tf.res[tf.res$sig==T,],'~/CN_method_tmp/PD46693_TF_pseudobulkDESeq2_sigOnly.txt',delim = '\t',col_names = T)
 

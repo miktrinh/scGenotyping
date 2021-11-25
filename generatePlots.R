@@ -4,20 +4,12 @@
 # Materials map #
 #################
 
-#Main Figures
+## Main Figures ##
+
 #F1A - Summary of methods.
-#F1B - Cartoon Schematic of RCC samples
+#F1B - Cartoon Schematic of RCC + NB samples.
 #F1C - SNV coverage.
 #F1D - hSNPs coverage.
-
-
-#F1C - RCC UMAP by PDID + contour around different celltypes 
-#F1D - Example of CopyKAT CNA profile for RCC tumour and normal
-#F1E - Heatmap or barplot showing accuracy of tumour/normal classification for RCCs.
-#F1F - Cartoon Schematic of Neuroblastoma samples.
-#F1G - NB UMAP by PDID + contour around different celltypes.
-#F1H - Example of CopyKAT CNA profile for NB tumour and normal.
-#F1I - Heatmap or barplot showing accuracy of Neuroblastoma.
 
 #F2A - RCC UMAP coloured by PDID + small panels for expr of CA9.
 #F2B - Barplots of AI and CK tumour/normal classification for RCC.
@@ -25,15 +17,17 @@
 #F2D - NB UMAP coloured by PDID.
 #F2E - Barplots of AI and CK tumour/normal classification for NB
 #F2F - Example of CopyKat output for Mesenchyme and tumour NB cells
-#F2G
+#F2G - BAF for Major clone + Minor clone in PD46693a
 
 
-#F2F - DE of major/minor clone for imprinted genes
+## Supplementary Figures ##
 
-#S1 – Bar charts showing relative abundances of tumour cells in all single cell experiments based on published annotations
-#S2 – For Neuroblastoma, per sample accuracy of the annotation.
-#S3 – Per cell coverage as a function of mutation burden.
-#S4 – Comparison of average expression between major/minor clone
+#FS1 - CopyKat and AI output for RCC dataset
+#FS2 - CopyKat and AI output for NB dataset + MA plot for PD46693a majorCl/minorCl
+
+## Supplementary Table ##
+#TS1-2 - List of DEGs between PD46693 majorCl vs minorCl 
+#TS3:11 - Battenberg output for all samples from RCC + NB datasets
 
 
 
@@ -47,7 +41,6 @@ setwd('/lustre/scratch117/casm/team274/mt22/CN_methods/')
 #############
 # Libraries #
 #############
-#General
 library(tidyverse)
 library(Seurat)
 library(readxl)
@@ -59,51 +52,13 @@ library(alleleIntegrator)
 #library(beeswarm)
 library(RColorBrewer)
 #library(survminer)
-source('scripts/plotParts.R')
-source('../generalScripts/utils/misc.R')
+#source('scripts/plotParts.R')
+source('scripts/finalScripts/misc.R')
 
 ####################
 # Useful functions #
 ####################
 
-#' Save raster and non-raster versions of plots
-#'
-#' Saves a pdf and png version of everything.
-#'
-#' @param baseName Name of file to save.  File name without extension.
-#' @param plotFun Function to generate the plot.  Must take two arguments, noFrame and noPlot which control if the plot part / frame part are drawn.
-#' @param width Width in inches.
-#' @param heights Height in inches.
-#' @param res Resolution in pixels per inch for rasterised image.
-#' @param rawData If provided, save the raw data used to make the plot.
-#' @param row.names Passed to write.table
-#' @param col.names Passed to write.table
-#' @param ... Passed to plotFun
-saveFig = function(baseName,plotFun,width=4,height=3,res=300,rawData=NULL,row.names=FALSE,col.names=TRUE,...){
-  #Save the base versions
-  pdf(paste0(baseName,'.pdf'),width=width,height=height,useDingbats=FALSE)
-  plotFun(noFrame=FALSE,noPlot=FALSE,...)
-  dev.off()
-  png(paste0(baseName,'.png'),width=width,height=height,res=300,units='in')
-  plotFun(...)
-  dev.off()
-  #And the various bits of frame in vector format
-  pdf(paste0(baseName,'_frame.pdf'),width=width,height=height,useDingbats=FALSE)
-  plotFun(noPlot=TRUE,noFrame=FALSE,...)
-  dev.off()
-  #And the various bits of the actual plot in raster format
-  png(paste0(baseName,'_plot.png'),width=width,height=height,res=300,units='in')
-  plotFun(noPlot=FALSE,noFrame=TRUE,...)
-  dev.off()
-  #Save raw data if provided
-  if(!is.null(rawData)){
-    write.table(rawData,paste0(baseName,'_rawData.tsv'),
-                quote=FALSE,
-                sep='\t',
-                row.names=row.names,
-                col.names=col.names)
-  }
-}
 
 
 
@@ -113,7 +68,7 @@ saveFig = function(baseName,plotFun,width=4,height=3,res=300,rawData=NULL,row.na
 ##############
 outDir='Plots'
 resDir='~/CN_method_tmp/tmp_plots/'
-res = '~/CN_method_tmp/figures/'
+res = '~/CN_method_tmp/figures_v2/'
 
 # Import RCC and NB datasets
 rcc.srat = readRDS('/lustre/scratch117/casm/team274/mt22/CN_methods/RCC_PCT_ann3sub.rds')
@@ -123,7 +78,8 @@ chromInfo = read.delim('/lustre/scratch117/casm/team274/mt22/chrom_abspos_kb.txt
 
 # Figure 1C - SNVs Coverage ####
 snvHist = function(){
-  all.out = read.csv('/lustre/scratch117/casm/team274/mt22/CN_methods/snvCov_allout.csv')
+  all.out = read.csv('/lustre/scratch117/casm/team274/mt22/CN_methods/snvCov_allout_2.csv')
+  all.out = all.out[all.out$finalAnn == 'Tumour',]
   #all.out = read.csv('/lustre/scratch117/casm/team274/mt22/CN_methods/snvCov_allout_withAnn.csv')
   
   all.out$cat = ifelse(all.out$totalReads <5,all.out$totalReads,
@@ -131,6 +87,53 @@ snvHist = function(){
   dd=all.out %>% group_by(tumourType,cat) %>% summarise(nCells = n())
   dd$cat = factor(dd$cat,levels = c('0','1','2','3','4','5-10','11+'))
   
+  
+  
+  plotFun = function(noFrame=FALSE,noPlot=FALSE){
+    par(mar=c(1.5,2.3,0.2,0.2),xpd=T)
+    plot(seq(0,9,1),rep(c(0),10),ylim=c(-4,1500),xlim=c(0,10),
+         las=1,
+         type='n',frame.plot = F,axes = F)
+    #axis(2,at=c(1,0.5,0),las=1,pos = 0.1,tck=-0.02,cex.axis=0.75,lwd.ticks = 0,hadj = 0.5)
+    axis(side = 2,at = c(0,500,1000,1500),labels = c(0,500,1000,1500),
+         tck=-0.02,lwd = 0.8,cex.axis=0.7,las=1,pos = -0.2,lwd.ticks = 0.8,hadj = 0.45)
+    axis(side = 1,at = c(0,10),labels = c('',''),
+         tck=-0.001,lwd = 0.8,cex.axis=0.7,las=1,pos = -10,lwd.ticks = 0,hadj = 0.4)
+    
+    text(x=seq(0.55,9.55,1.5),y=-70,as.character(levels(dd$cat)),cex = 0.7)
+    
+    mtext(side=1,text = 'SNVs Coverage',family='Helvetica',font = 1,cex = 0.8,line = 0.3)
+    mtext(side=2,text = '# Cells',family='Helvetica',font = 1,cex = 0.8,line = 1.5)
+    xleft = seq(0,9,1.5)
+    xright = xleft + 0.5
+    ybottom = 0
+    ytop= dd[dd$tumourType=='NB',]$nCells[c(1,2,4,5,6,7,3)]
+    #ytops = cumsum(dat)
+    rect(xleft=xleft,
+         xright=xright,
+         ybottom=ybottom,
+         ytop=ytop,col='lightgrey',
+         #col = ccs[names(dat)],
+         lwd = 0.7,
+         border = 'black')
+    
+    
+    xleft = seq(0.6,9.6,1.5)
+    xright = xleft + 0.5
+    ybottom = 0
+    ytop= dd[dd$tumourType=='RCC',]$nCells[c(1,2,4,5,6,7,3)]
+    #ytops = cumsum(dat)
+    rect(xleft=xleft,
+         xright=xright,
+         ybottom=ybottom,
+         ytop=ytop,col='#878787',
+         #col = ccs[names(dat)],
+         lwd = 0.7,
+         border = 'black')
+    cols = c(NB='lightgrey',RCC = '#878787')
+    legend(y=1200, x=6.5,legend=names(cols),fill = cols,lwd = 0,cex = 1.2,lty = NA,xjust = 0,seg.len=0.01,box.lwd = 1.0,bty = 'n')
+  }
+  saveFig(file.path(res,paste0('SNVcov_distr_tumCellsonly')),plotFun,width = 2.1,height = 2.7,rawData = all.out)   
   
   
   plotFun = function(noFrame=FALSE,noPlot=FALSE){
@@ -177,8 +180,9 @@ snvHist = function(){
     cols = c(NB='lightgrey',RCC = '#878787')
     legend(y=5500, x=6.5,legend=names(cols),fill = cols,lwd = 0,cex = 0.8,lty = NA,xjust = 0,seg.len=0.01,box.lwd = 0.0,bty = 'n')
   }
+  saveFig(file.path(res,paste0('SNVcov_distr_allCells')),plotFun,width = 2.1,height = 2.7,rawData = all.out)   
   
-  saveFig(file.path(res,paste0('SNVcov_distr')),plotFun,width = 2.1,height = 2.7,rawData = all.out)   
+  
   
   
 }
@@ -189,19 +193,33 @@ snvHist = function(){
 
 # Figure 1D - hSNPs Coverage ####
 hsnpHist = function(){
-  all.out = read.csv('/lustre/scratch117/casm/team274/mt22/CN_methods/hSNPcov_allout.csv')
-  
+  all.out = read.csv('/lustre/scratch117/casm/team274/mt22/CN_methods/hSNPcov_allout_2.csv')
   m=match(rcc.srat$cellID,all.out$cellID)
   sum(is.na(m))
   all.out$finalAnn2[m[!is.na(m)]] = rcc.srat$finalAnn2[!is.na(m)]
   
-  m=match(nb.srat$cellID,all.out$cellID)
+  m=match(all.out$cellID[all.out$tumourType =='NB'],nb.srat$cellID)
   sum(is.na(m))
-  all.out$finalAnn3=NA
-  all.out$finalAnn3[m[!is.na(m)]] = nb.srat$cell_type[!is.na(m)]
+  all.out$finalAnn2[all.out$tumourType =='NB'] = nb.srat$cell_type[m]
+  
+  
+  all.out = all.out[all.out$finalAnn2 == 'Tumour',]
   
   all.out$avgCov = all.out$totalReads / all.out$totalSNPs
   
+  plotFun = function(noFrame=FALSE,noPlot=FALSE){
+    par(mar=c(1.5,2.3,0.2,0.2),xpd=T)
+    
+    hist(log10(all.out$totalReads),breaks = 50,freq = T,main = '',axes = F)
+    axis(1,at=c(1.6,2,3,4,5),labels = c('',2,3,4,5),las=1,pos = 0.1,tck=-0.02,cex.axis=0.7,lwd.ticks = 0.8,hadj = 0.5,padj = -2.0,lwd = 0.8)
+    axis(2,at=c(0,50,100,150),las=1,tck=-0.02,cex.axis=0.7,lwd.ticks = 0.8,hadj = 0.45,padj = 0.5,lwd = 0.8)
+    #axis(2,at=c(2000,2800),labels = c('',''),las=1,tck=-0.02,cex.axis=0.6,lwd.ticks = 0,hadj = 0.35,padj = 0.5,lwd = 0.8)
+    
+    mtext(side=1,text = 'hSNPs Coverage (log10)',family='Helvetica',font = 1,cex = 0.8,line = 0.5)
+    mtext(side=2,text = '# Cells',family='Helvetica',font = 1,cex = 0.8,line = 1.5)
+    
+  }
+  saveFig(file.path(res,paste0('hSNPcov_distr_tumourCellsonly')),plotFun,width = 2.1,height = 2.7,rawData = all.out)  
   
   plotFun = function(noFrame=FALSE,noPlot=FALSE){
     par(mar=c(1.5,2.3,0.2,0.2),xpd=T)
@@ -806,7 +824,7 @@ rccCK = function(sampleList='all'){
 
 
 # Figure 2Ba - Barplots of RCC CK classification ####
-rccBarplot = function(){
+rccBarplot.CK = function(){
   rcc.srat = readRDS('/lustre/scratch117/casm/team274/mt22/CN_methods/RCC_PCT_ann3sub.rds')
   # Extract CK output
   dd = rcc.srat@meta.data
@@ -859,13 +877,12 @@ rccBarplot = function(){
     }
     
   }
-  #saveFig(file.path(resDir,paste0('TEST')),plotFun,width = 1.7,height = 2.75,rawData = dd)
-  saveFig(file.path(res,paste0('RCC_CK_barplot_noUncalled')),plotFun,width = 0.6,height = 2.75,rawData = dd,res=500)
+  saveFig(file.path(res,paste0('Fig2Ba_RCC_CK_barplot_noUncalled')),plotFun,width = 0.6,height = 2.75,rawData = dd,res=500)
 }
 
 
 # Figure 2Bb - Barplots of RCC AI classification ####
-rccBarplot = function(){
+rccBarplot.AI = function(){
   rcc.srat = readRDS('/lustre/scratch117/casm/team274/mt22/CN_methods/RCC_PCT_ann3sub.rds')
   # Extract CK output
   dd = rcc.srat@meta.data
@@ -874,8 +891,8 @@ rccBarplot = function(){
   dd$AI_sc_call = ifelse((is.na(dd$AI_sc_call)|dd$AI_sc_call=='Uncalled'),'Uncalled',
                          ifelse(dd$AI_sc_call == 'abbFrac','Tumour','Normal'))
   dd = dd[dd$AI_sc_call != 'Uncalled',]
-  #dd$AI_sc_call = factor(dd$AI_sc_call,levels = c('Tumour','Normal','Uncalled'))
   dd$AI_sc_call = factor(dd$AI_sc_call,levels = c('Tumour','Normal'))
+  
   
   #Define the layout
   plotFun = function(noFrame=FALSE,noPlot=FALSE){
@@ -886,7 +903,6 @@ rccBarplot = function(){
          type='n',frame.plot = F,axes = F)
     title('RCC',cex.main=1,family = 'Helvetica',font=2)
     for(celltype in levels(dd$finalAnn)){
-      print(celltype)
       par(mar=c(0.2,1.5,0.5,0.1),xpd=TRUE)
       
       tmp=as.matrix(table(dd$AI_sc_call[dd$finalAnn == celltype],dd$PDID[dd$finalAnn == celltype]))
@@ -900,29 +916,35 @@ rccBarplot = function(){
                 col=cols[rownames(tmp)],
                 space=0.1,axes = FALSE,
                 las = 1,names.arg = rep(NA,ncol(tmp)),border = F)  
-        #axis(2,at=c(1,0.5,0),las=1,pos = 0.1,tck=-0.02,cex.axis=0.8,lwd.ticks = 0,hadj = 0.5)
-        #text(x = seq(0.5,5,by = 1.2),y = -0.1,colnames(tmp),cex=1.0,family = 'Helvetica',font=1,srt=90,adj = 1)
         text(x = seq(0.6,4.5,by = 1.105),y = -0.1,colnames(tmp),cex=0.7,family = 'Helvetica',font=1,srt=90,adj = 1)
-        #text(x = 4.8,y = 0.5,celltype,cex=0.85,family = 'Helvetica',font=1,srt=270)
         text(x =-1.3,y = 0.5,celltype,cex=0.7,family = 'Helvetica',font=1,srt=90)
       }else{
         barplot(tmp,
                 col=cols[rownames(tmp)],
                 space=0.1,axes = FALSE,names.arg = rep(' ',ncol(tmp)),
                 las = 1,main = '',border = F)
-        #axis(2,at=c(1,0.5,0),las=1,pos = 0.1,tck=-0.02,cex.axis =0.8,lwd.ticks = 0,hadj = 0.5,)
-        #text(x = 4.8,y = 0.5,celltype,cex=0.85,family = 'Helvetica',font=1,srt=270)
         text(x =-1.3,y = 0.5,celltype,cex=0.7,family = 'Helvetica',font=1,srt=90)
       }
       
     }
     
   }
-  #saveFig(file.path(resDir,paste0('TEST')),plotFun,width = 1.7,height = 2.75,rawData = dd)
-  saveFig(file.path(res,paste0('RCC_AI_barplot_noUncalled')),plotFun,width = 0.6,height = 2.75,rawData = dd,res=500)
+  saveFig(file.path(res,paste0('Fig2Bb_RCC_AI_barplot_noUncalled')),plotFun,width = 0.6,height = 2.75,rawData = dd,res=500)
+  for(i in c('PTC','tumour')){
+    if(i=='PTC'){
+      data = dd[dd$finalAnn == 'PTC',]
+      data$finalAnn = as.factor(as.character(data$finalAnn))
+      saveFig(file.path(res,paste0('Fig2Bb_RCC_AI_barplot_noUncalled_PTC')), plotFun = plotFun(data),width = 0.6,height = 2.75,rawData = dd,res=500)
+    }else if (i=='Tumour'){
+      data = dd[dd$finalAnn != 'PTC',]
+      saveFig(file.path(res,paste0('Fig2Bb_RCC_AI_barplot_noUncalled_TumBiopsies')),plotFun(dd=data),width = 0.6,height = 2.75,rawData = dd,res=500)
+    }
+  }
+  
 }
+
 # Figure 2Ea - Barplots of NB CK classification ####
-nbBarplot = function(){
+nbBarplot.CK = function(){
   nb.srat = readRDS('/lustre/scratch117/casm/team274/mt22/CN_methods/NB_ann.rds')
   # Extract CK output
   dd = nb.srat@meta.data
@@ -988,12 +1010,12 @@ nbBarplot = function(){
 }
 
 # Figure 2Eb - Barplots of NB AI classification ####
-nbBarplot = function(){
+nbBarplot.AI = function(){
   nb.srat = readRDS('/lustre/scratch117/casm/team274/mt22/CN_methods/NB_ann.rds')
   # Extract CK output
   dd = nb.srat@meta.data
   dd$finalAnn = factor(dd$finalAnn,levels = c('Leukocytes','Endothelium','Mesenchyme','Tumour'))
-  dd$PDID = factor(dd$PD_ID,levels = c("PD42184","PD42752-1","PD42752-2","PD46693","PD43255"))
+  dd$PDID = factor(dd$PD_ID,levels = c("PD42752-1","PD42752-2","PD46693","PD43255","PD42184"))
   dd$AI_sc_call = ifelse((is.na(dd$AI_sc_call)|dd$AI_sc_call == 'Uncalled'),'Uncalled',
                          ifelse(dd$AI_sc_call == 'abbFrac','Tumour','Normal'))
   dd = dd[dd$AI_sc_call != 'Uncalled',]
@@ -1002,20 +1024,14 @@ nbBarplot = function(){
   
   #Define the layout
   plotFun = function(noFrame=FALSE,noPlot=FALSE){
-    layout(matrix(c(1,2,3,4,5),ncol=1),heights = c(0.2,1,1,1,2))
+    layout(matrix(c(1,2,3,4,5),ncol=1),heights = c(0.2,1,1,1,2.2))
     par(mar=c(0,0.6,0.8,0.6))
     plot(0,0,
          las=1,
          type='n',frame.plot = F,axes = F)
     title('Neuroblastoma',cex.main=1,family = 'Helvetica',font=2)
     for(celltype in levels(dd$finalAnn)){
-      print(celltype)
       par(mar=c(0.05,1.5,0.2,0.1),xpd=TRUE)
-      #Define the empty plot area
-      #plot(0,0,las=1,
-      #     type='n',
-      #     xlab='',xaxt='n',
-      #     ylab='',yaxt='n',frame.plot=T)
       
       tmp=as.matrix(table(dd$AI_sc_call[dd$finalAnn == celltype],dd$PDID[dd$finalAnn == celltype]))
       tmp = sweep(tmp,2,colSums(tmp),'/')
@@ -1028,12 +1044,7 @@ nbBarplot = function(){
                 col=cols[rownames(tmp)],
                 space=0.1,axes = FALSE,
                 las = 1,names.arg = rep(NA,ncol(tmp)),border = F)  
-        #axis(2,at=c(1,0.5,0),las=1,pos = 0.1,tck=-0.02,cex.axis=0.75,lwd.ticks = 0,hadj = 0.5)
-        #text(x = seq(0.5,6,by = 1.2),y = -0.1,colnames(tmp),cex=0.8,family = 'Helvetica',font=1,srt=45,adj = 1)
-        #text(x = 5.8,y = 0.5,celltype,cex=0.65,family = 'Helvetica',font=1,srt=270)
-        
-        #axis(2,at=c(1,0.5,0),las=1,pos = 0.1,tck=-0.02,cex.axis=0.8,lwd.ticks = 0,hadj = 0.5)
-        #text(x = seq(0.5,6,by = 1.2),y = -0.1,colnames(tmp),cex=0.9,family = 'Helvetica',font=1,srt=90,adj = 0.95)
+
         text(x = seq(0.65,6,by = 1.105),y = -0.1,colnames(tmp),cex=0.7,family = 'Helvetica',font=1,srt=90,adj = 0.95)
         text(x = -1.3,y = 0.5,celltype,cex=0.7,family = 'Helvetica',font=1,srt=90)
       }else{
@@ -1041,15 +1052,13 @@ nbBarplot = function(){
                 col=cols[rownames(tmp)],
                 space=0.1,axes = FALSE,names.arg = rep(' ',ncol(tmp)),
                 las = 1,main = '',border = F)
-        #axis(2,at=c(1,0.5,0),las=1,pos = 0.1,tck=-0.02,cex.axis =0.75,lwd.ticks = 0,hadj = 0.5,)
         text(x =-1.3,y = 0.5,celltype,cex=0.7,family = 'Helvetica',font=1,srt=90)
       }
       
     }
     
   }
-  #saveFig(file.path(resDir,paste0('TEST')),plotFun,width = 1.7,height = 3.2,rawData = dd)
-  saveFig(file.path(res,paste0('NB_AI_barplot_noUncalled')),plotFun,width = 0.7,height = 3.0,rawData = dd,res=500)
+  saveFig(file.path(res,paste0('Fig2Eb_NB_AI_barplot_noUncalled')),plotFun,width = 0.7,height = 3.0,rawData = dd,res=500)
   
 }
 
@@ -1057,7 +1066,7 @@ nbBarplot = function(){
 # Figure 2F - Example of CopyKat output for normal and tumour NB cells ####
 sampleList = c('PD42184','PD42752-2')
 # Figure S1 NB - CopyKat output for normal and tumour NB cells ####
-
+subCl.minSegLen = 2e7
 nbCK = function(){
   nb.srat = readRDS('/lustre/scratch117/casm/team274/mt22/CN_methods/NB_ann.rds')
   nb.srat$PDID = as.character(nb.srat$PD_ID)
@@ -1068,7 +1077,6 @@ nbCK = function(){
   # CopyKat results
   copykat.results = readRDS('/lustre/scratch117/casm/team274/mt22/CN_methods/CopyKAT_output/v5_nb.CK.normREF.default.2397/v5_CKresults_default_normREF_80perc_2397.rds')
   
-  # Extract data for PD36793 only (as examples)
   #----- Processing CopyKat results -------#
   for(i in 1:length(copykat.results)){
     # Get copyKat CNA matrix and prediction
@@ -1092,10 +1100,8 @@ nbCK = function(){
     # subset annnb.srat object to keep only cells of that sample
     srat = subset(nb.srat, subset = PDID == sample)
     
-    
     # subset by annotated cell type
     for(celltype in unique(srat$finalAnn)){
-      
       CNA_mat_sub = CNA_mat[,c(1:3,which(colnames(CNA_mat) %in% rownames(srat@meta.data[srat@meta.data$finalAnn == celltype,])))]
       
       if(ncol(CNA_mat_sub) == 4){
@@ -1115,12 +1121,10 @@ nbCK = function(){
     
     
     ####------------------ Generate Battenberg CN summary file ----------------####
-    # Battenberg .summary.csv file - only summarize Major Clone CNV, does not included CN states of minor clones
-    # read BTB 
     donorMani = projMani[projMani$PDID == sample,]
     btb.fp = unique(donorMani$battenbergFp)
     #----- Processing Battenberg data -------#
-    dna.data = annotateBTB(btb.fp,subCl.minSegLen = 5e7,PDID,tgtChrs=c(1:22),removeBalancedSegs=F,removeDipSegs = F,method = 'totalCN')  
+    dna.data = annotateBTB(btb.fp,subCl.minSegLen = subCl.minSegLen,PDID,tgtChrs=c(1:22),removeBalancedSegs=F,longFormat = T,method = 'totalCN')  
     # Remove X chromosome 
     dna.data = dna.data[dna.data$Chr != 23,]
     
@@ -1140,59 +1144,20 @@ nbCK = function(){
     
     
     
-    
-    
     #----- Plotting copykat results! -------#
-    
     chromInfo2 = chromInfo[chromInfo$chrom != 23,]
     
-    
-    plotFun = function(noFrame=T,noPlot=FALSE){
+    plotFun = function(noFrame=TRUE,noPlot=FALSE){
       noFrame=T
-      #par(mfcol=c(length(unique(CNA_summary_byCellType$celltype)),1))
-      #layout(mat=matrix(c(1,2,2,2,
-      #                    1,3,4,5,
-      #                    1,6,6,6),ncol=3),
-      #       heights = c(0.5,2,2,2),
-      #       widths = c(0.5,3,0.5))
-      if(nlevels(CNA_summary_byCellType$celltype) == 2){
-        #layout(mat=matrix(c(1,2,3),ncol=1),heights = c(0.3,2,2))
-        layout(mat=matrix(c(1,2),ncol=1),heights = c(2,2))
-      }else if(nlevels(CNA_summary_byCellType$celltype) == 3){
-        #layout(mat=matrix(c(1,2,3,4),ncol=1),heights = c(0.3,2,2,2))  
-        layout(mat=matrix(c(1,2,3),ncol=1),heights = c(2,2,2))  
-      }else if(nlevels(CNA_summary_byCellType$celltype) == 4){
-        #layout(mat=matrix(c(1,2,3,4,5),ncol=1),heights = c(0.3,2,2,2,2))  
-        layout(mat=matrix(c(1,2,3,4),ncol=1),heights = c(2,2,2,2))  
-      }
+      # Set layout
+      layout(mat=matrix(c(1:nlevels(CNA_summary_byCellType$celltype)),ncol=1),
+             heights = rep(2,nlevels(CNA_summary_byCellType$celltype)))
       
-      plotTitle = F
-      if(plotTitle == TRUE){
-        par(mar=c(0,0.6,0.8,0.6),xpd=T)
-        plot(CNA_summary_byCellType$abspos, CNA_summary_byCellType$mean_logCN,
-             las=1,
-             type='n',
-             #xlim=c(-15.5,15),
-             ylim=c(0,0.1),
-             xlab=ifelse(noFrame,'',''),
-             ylab=ifelse(noFrame,'',''),
-             main=PDID,
-             cex.main=1.2,
-             xaxt=ifelse(noFrame,'n','s'),
-             yaxt=ifelse(noFrame,'n','s'),
-             frame.plot=F)
-      }
-      
-      
-      #text(x = max(chromInfo2$abspos_kb*1000)/2, y=0,PDID, col="black",family='Helvetica')
       for(celltype in levels(CNA_summary_byCellType$celltype)){
         par(mar=c(0.2,0.6,0.8,0.6),xpd=TRUE)
         tmp = CNA_summary_byCellType[CNA_summary_byCellType$celltype == celltype,]
         dna = majCl.dna[majCl.dna$celltype == celltype,]
         ncells = nrow(nb.srat@meta.data[nb.srat@meta.data$PDID == PDID & nb.srat@meta.data$finalAnn == celltype,])
-        
-        
-        
         
         # Set params for plotting
         ylim = c(round(min(CNA_summary_byCellType[!is.na(CNA_summary_byCellType$mean_logCN),]$mean_logCN)-0.1,digits = 1),round(max(CNA_summary_byCellType[!is.na(CNA_summary_byCellType$mean_logCN),]$mean_logCN)+0.2,digits = 1))
@@ -1201,17 +1166,13 @@ nbCK = function(){
         ytext = ytop + 0.1
         
         
-        
-        
         # Plot main frame
         plot(CNA_summary_byCellType$abspos, CNA_summary_byCellType$mean_logCN,
              las=1,
              type='n',
-             #xlim=c(-15.5,15),
              ylim=ylim,
              xlab=ifelse(noFrame,'','Genomic Position'),
              ylab=ifelse(noFrame,'',''),
-             #main=ifelse(noFrame,'',''),
              xaxt=ifelse(noFrame,'n','s'),
              yaxt=ifelse(noFrame,'n','s'),
              frame.plot=F)
@@ -1221,20 +1182,12 @@ nbCK = function(){
         xleft = c(0,chromInfo2[chromInfo2$arm == 'q' & chromInfo2$chrom!=22,]$abspos*1000)
         xright = c(chromInfo2[chromInfo2$arm == 'q',]$abspos*1000)
         
+        text(x=9e8,y=ytext,paste0(celltype,'_',PDID,' (n=',ncells,')'),cex=0.6,family = 'Helvetica',font=2,adj = 0)
         
-        text(x=1.2e9,y=ytext,paste0(celltype,'_',PDID,' (n=',ncells,')'),cex=0.7,family = 'Helvetica',font=2,adj = 0)
-        
-        #text(x=2.86e9,y=0.95,paste0('n=',ncells),cex=0.9,family = 'Helvetica',font=1,adj = 1)
-        #axis(2,at=c(0),las=1,pos = 0,tck = -.02,lwd = 0.7,cex.axis=0.7,hadj = -0.8,padj = 0.5)
         axis(2,at=c(ybottom+0.05,0,ytop-0.05),labels = c('Low',0,'High'),las=1,pos = 0,tck = -.00,lwd = 0.3,cex.axis=0.6,hadj = 0.3,padj = 0.5)
-        #axis(4,las=1,pos = max(chromInfo2$abspos_kb*1000),tck = -.04,lwd = 0.7,cex.axis=0.7,hadj = 1.5,
-        #     at=c(round(log(0.5),2),0,round(log(3/2),2),round(log(4/2),2)),
-        #     labels = c(1,2,3,4))
-        axis(4,las=1,pos = max(chromInfo2$abspos_kb*1000),tck = -.02,lwd = 0.7,cex.axis=0.7,hadj = 1.5,col='black',
+        axis(4,las=1,pos = max(chromInfo2$abspos_kb*1000),tck = -.02,lwd = 0.7,cex.axis=0.6,hadj = 1.5,col='black',
              at=c(round(log(0.5)/2,2),0,round(log(3/2)/2,2),round(log(4/2)/2,2)),col.axis = '#b02c46',
              labels = c(1,2,3,4))
-        
-        #axis(4,las=1,pos = max(chromInfo2$abspos_kb*1000),at=c(-0.35,0,0.2,0.35))
         
         col = replicate(c('white','lightgrey'),n = 22/2)
         rect(xleft=xleft,
@@ -1249,22 +1202,17 @@ nbCK = function(){
              ybottom=ybottom,
              ytop=ytop,
              col = colAlpha('white',0.0001),
-             border = 'black',lwd = 0.5)
-        #textSize = (xright-xleft)/xright[1]
-        #text(x=(xleft+xright)/2,y = 0.9,labels = c(1:22),cex = c(1.5*textSize),font = 2)
+             border = 'black',lwd = 0.4)
         
         #text(x=(xleft+xright)/2,y = 0.72,labels = c(1:22),cex = c(rep(0.7,10),rep(0.62,4),rep(0.53,4),rep(0.31,4)),font = 1)
         
         # Plot ground truth
-        #segments(x0=min(xleft),x1 = max(xright), 
-        #         y0=0, y1=0,
-        #         col = 'black')
         rect(xleft = dna[dna$posType=='Start',]$abspos_kb*1000,
              xright = dna[dna$posType=='Stop',]$abspos_kb*1000,
              ybottom = 0,
              ytop=dna[dna$posType=='Start',]$log_CNratio/2,
              col=colAlpha('#b02c46',1),
-             border=colAlpha('#b02c46',1),lwd = 1)
+             border=colAlpha('#b02c46',1),lwd = 0.8)
         
         # Plot subclone total CN
         if(celltype == 'Tumour' & nrow(subCl.dna) > 0){
@@ -1272,57 +1220,42 @@ nbCK = function(){
             for(logR in unique(subCl.dna[subCl.dna$Chr == chr,]$log_CNratio)){
               d = subCl.dna[subCl.dna$Chr == chr & subCl.dna$log_CNratio == logR,]
               if(logR == 0){
-                lines(d$abspos_kb*1000,d$log_CNratio/2,col='#4169E1',lwd=1.5)
+                lines(d$abspos_kb*1000,d$log_CNratio/2,col='#4169E1',lwd=1.0)
               }else{
                 rect(xleft = d[d$posType=='Start',]$abspos_kb*1000,
                      xright = d[d$posType=='Stop',]$abspos_kb*1000,
                      ybottom = 0,
                      ytop=d[d$posType=='Start',]$log_CNratio/2,
                      col=colAlpha('#4169E1',0.7),
-                     border=colAlpha('#4169E1',0.4),lwd = 0.8)
+                     border=colAlpha('#4169E1',0.7),lwd = 0)
               }
             }
           }
         }
         
         # Plot CopyKat output
-        
-        lines(x=tmp$abspos,tmp$mean_logCN,col='black',lwd=0.8)
+        lines(x=tmp$abspos,tmp$mean_logCN,col='black',lwd=0.7)
         segments(x0=min(xleft),x1 = max(xright), 
                  y0=0.2, y1=0.2,
                  col = 'darkgrey',lty = 'dashed',lwd = 0.4)
         segments(x0=min(xleft),x1 = max(xright), 
                  y0=-0.2, y1=-0.2,
                  col = colAlpha('darkgrey',0.9),lty = 'dashed',lwd = 0.4)
-        
       }
-      # add a title for the right axis
-      #par(xpd = TRUE)
-      #mtext('hello',side=4)
-      #text(x = max(chromInfo2$abspos_kb*1000)+0.15e9, y = 0, "Total Copy Number", col="black",srt = 270,family='Helvetica')
-      
-      # Add genomic position
-      #par(mar=c(0.1,0.5,0,1.5))
-      #axis(1,
-      #     at=xright,tck=0,
-      #     lwd=0,
-      #     lwd.ticks=0,
-      #     las=2,  
-      #     label=paste0(format(xright/1e9, scientific=F,digits = 1),' Gb'))
-      
     }
     
-    #dd$rowName = rownames(dd)
-    #saveFig(file.path(resDir,paste0('TEST_',PDID)),plotFun,width = 3.3,height = 3)
-    
-    saveFig(file.path(res,paste0('v2or5e7_FigS1_CK2_new_',PDID)),plotFun,width = 2,height = 3.0,res=500)  
-    
+    saveFig(file.path(res,paste0('FigS2_NB_CK_',PDID,'_',subCl.minSegLen)),plotFun,width = 2.0,height = 3.2,res=500)  
     
   }
 }
 
 
 # Figure 2C and S2 - Example of AlleleIntegrator output for normal and tumour RCC cells ####
+subCl.minSegLen = 2e7
+cov=500
+tumour = 'NB'
+sampleList = 'all'
+
 plotMAF = function(tumour,sampleList='all'){
   if(tumour == 'RCC'){
     sheet = 'RCC_mani'
@@ -1337,10 +1270,9 @@ plotMAF = function(tumour,sampleList='all'){
   }
   outdir = '/lustre/scratch117/casm/team274/mt22/CN_methods/alleleIntegrator_output/'
   
-  #PDID = unique(projMani$PDID)[2]
+  #PDID = unique(projMani$PDID)[1]
   for(PDID in unique(projMani$PDID)){
     donorMani = projMani[projMani$PDID == PDID,]
-    
     
     ####------------------ Get MAF output ----------------####
     if(sheet == 'RCC_mani'){
@@ -1372,14 +1304,10 @@ plotMAF = function(tumour,sampleList='all'){
       }
     }
     
-    
     ctmp = ctmp[order(c(ctmp$chr,ctmp$abspos_kb),decreasing = F),]
     ctmp$regionID = paste0(ctmp$clusterID,'_',ctmp$regionID)
     
-    
     #### Aggregating by read coverage 
-    cov = 500
-    
     out = ctmp %>% arrange(clusterID,abspos_kb) %>% group_by(clusterID) %>% summarise(totCnt.cumsum = cumsum(totCount),regionID=regionID)
     m=match(out$regionID,ctmp$regionID)
     sum(is.na(m))
@@ -1411,25 +1339,20 @@ plotMAF = function(tumour,sampleList='all'){
     if(sheet == 'RCC_mani'){
       out2$clusterID[out2$clusterID == 'Renal_cell_carcinoma'] = 'Tumour'
       out2$clusterID[out2$clusterID == 'Proximal_tubuluar_cells'] = 'PTC'
-      #out2$clusterID[out2$clusterID == 'Leukocytes'] = 'Leukocyte'
       out2$clusterID = factor(out2$clusterID,levels = c('Tumour','PTC','Leukocytes'))  
       if(sampleList != 'all'){
-        out2=out2[out2$clusterID != 'Leukocyte',]
+        out2=out2[out2$clusterID != 'Leukocytes',]
         out2$clusterID = factor(out2$clusterID,levels = c('Tumour','PTC'))  
       }
     }else if(sheet == 'NB_mani'){
-      #out2$clusterID[out2$clusterID == 'Leukocytes'] = 'Leukocyte'
       out2$clusterID = factor(out2$clusterID,levels = c('Tumour','Mesenchyme','Endothelium','Leukocytes')) 
     }
     
     
-    
     ####------------------ Generate Battenberg CN summary file ----------------####
-    # Battenberg .summary.csv file - only summarize Major Clone CNV, does not included CN states of minor clones
-    # read BTB 
     btb.fp = unique(donorMani$battenbergFp)[!is.na(unique(donorMani$battenbergFp))]
     #----- Processing Battenberg data -------#
-    dna.data = annotateBTB(btb.fp,subCl.minSegLen = 1e7,PDID,tgtChrs=c(1:22),removeBalancedSegs=F,longFormat = T,method = 'allelicRatio')  
+    dna.data = annotateBTB(btb.fp,subCl.minSegLen = subCl.minSegLen,PDID,tgtChrs=c(1:22),removeBalancedSegs=F,longFormat = T,method = 'allelicRatio')  
     
     # Remove X chromosome 
     dna.data = dna.data[dna.data$Chr != 23,]
@@ -1454,10 +1377,10 @@ plotMAF = function(tumour,sampleList='all'){
     majCl.dna = dna.data[dna.data$type == 'maj',]
     
     
-    
     plotFun = function(noFrame=T,noPlot=FALSE){
       layout(mat=matrix(c(1:nlevels(CNA_summary_byCellType$celltype)),ncol=1),
              heights = rep(2,nlevels(CNA_summary_byCellType$celltype)))
+      
       # Set plotting params
       params = data.frame(sheet = c('NB_mani','RCC_mani','NB_mani','RCC_mani'),
                           sampleList=c('all','all','PD42184','PD37228'),
@@ -1467,17 +1390,16 @@ plotMAF = function(tumour,sampleList='all'){
                           text.y = c(1.37,1.37,1.32,1.32))
       
       for(celltype in levels(out2$clusterID)){
-        
         par(mar=as.vector(as.numeric(strsplit(params[params$sheet == sheet & params$sampleList == sampleList,]$mar,split = ',')[[1]])),xpd=TRUE)
         tmp = out2[out2$clusterID == celltype,]
         dna = majCl.dna[majCl.dna$clusterID == celltype,]
         dna = dna[order(dna$abspos_kb,decreasing = F),]
+        
         if(sheet == 'RCC_mani'){
           ncells = nrow(rcc.srat@meta.data[rcc.srat@meta.data$PDID == PDID & rcc.srat@meta.data$finalAnn == celltype,])  
         }else if (sheet == 'NB_mani'){
           ncells = nrow(nb.srat@meta.data[nb.srat@meta.data$PD_ID == PDID & nb.srat@meta.data$finalAnn == celltype,])  
         }
-        
         
         # Plot main frame
         plot(out2$midPos*1000, out2$MAF.readCovBin,
@@ -1502,6 +1424,7 @@ plotMAF = function(tumour,sampleList='all'){
              ytop=1.18,
              col = col,
              lty = 'blank')
+        
         #Black surrounding border
         rect(xleft=min(xleft),
              xright=max(xright),
@@ -1512,7 +1435,6 @@ plotMAF = function(tumour,sampleList='all'){
         
         # Plot chromosome number
         #text(x=(xleft+xright)/2,y = 1.095,labels = c(1:22),cex = c(rep(0.7,10),rep(0.62,4),rep(0.53,4),rep(0.31,4)),font = 1)
-        
         
         # Plot AI MAF
         a = ifelse(celltype %in% c('Tumour','Leukocyte'),0.7,0.85)
@@ -1538,13 +1460,12 @@ plotMAF = function(tumour,sampleList='all'){
     if(sampleList != 'all' & sheet == 'RCC_mani'){
       saveFig(file.path(res,paste0('v2_RCC_AI_',PDID)),plotFun,width = 2.65,height = 2.15,res=500)
     }else if(sampleList == 'all' & sheet == 'RCC_mani'){
-      saveFig(file.path(res,paste0('FigS2_AI2_',PDID,'_v1e7')),plotFun,width = 2.3,height = 3.5,res=500)  
+      saveFig(file.path(res,paste0('FigS2_AI_',PDID,'_',subCl.minSegLen)),plotFun,width = 2.3,height = 3.5,res=500)  
     }else if(sampleList != 'all' & sheet == 'NB_mani'){
       saveFig(file.path(res,paste0('v2_NB_AI_',PDID)),plotFun,width = 2.5,height = 2.265,res=500)  
     }else if(sampleList == 'all' & sheet == 'NB_mani'){
-      saveFig(file.path(res,paste0('v5or2e7_FigS2_AI2_',PDID)),plotFun,width = 2,height = 3.0,res=500)  
+      saveFig(file.path(res,paste0('FigS2_AI_',PDID,'_',subCl.minSegLen)),plotFun,width = 2.0,height = 3.2,res=500)  
     }
-    
   }
 }
 
@@ -1553,7 +1474,6 @@ plotMAF = function(tumour,sampleList='all'){
 # Figure ?? - GOSH25 ####
 subclone = function(){
   gosh25 = readRDS('/lustre/scratch117/casm/team274/mt22/CN_methods/alleleIntegrator_output/NB/GOSH25_probAbb.rds')
-  
   
   clonal = subset(gosh25,subset = cell_type == 'Tumour')
   clonal$clonalType = ifelse(clonal$chr4.probAbberant > 0.99,'Minor',ifelse(clonal$chr4.probAbberant <0.01,'Major','uncalled'))
@@ -1641,14 +1561,72 @@ subclone = function(){
 
 
 
-# GOSH25 - BAF plot ####
+# GOSH25 - bulkDNA BAF plot ####
+dd = read.delim('/lustre/scratch117/casm/team274/mt22/CN_methods/PD46693_dataForMAplot.txt',header = T,sep = '\t')
+plotFun = function(noFrame=FALSE,noPlot=FALSE){
+  sigcol = c(yes = 'black',no='lightgrey',red = 'red')
+  
+  par(mfrow=c(1,1),mar=c(4,4,0.2,0.5))
+  plot(dd$A,dd$M,
+       las=1,
+       type='n',cex.axis=0.6,tck=-0.03,cex.lab=0.7,
+       xlab= 'Mean log2 normalized count',ylab='log2 FC',
+       frame.plot=T)
+  #axis(1,at=seq(-16,-4,2),las=1,pos = 0.1,tck=-0.02,cex.axis =0.8,lwd.ticks = 0,hadj = 0.5)
+  #axis(2,at=seq(-4,2,2),las=1,pos = 0.1,tck=-0.02,cex.axis =0.8,lwd.ticks = 0,hadj = 0.5)
+  #mtext(side=1,text = 'Mean log2 normalized count',family='Helvetica',font = 1,cex = 0.8,line = 0.3)
+  #mtext(side=2,text = 'log2 FC',family='Helvetica',font = 1,cex = 0.8,line = 1.5)
+  
+  segments(x0=-30,x1 = 0, 
+           y0=0, y1=0,
+           col = 'black')
+  points(dd$A,dd$M,pch=19,cex=0.02,col=sigcol[dd$sig])
+  points(dd[dd$sig == 'red',]$A,dd[dd$sig == 'red',]$M,pch=19,cex=0.02,col=sigcol[dd[dd$sig == 'red',]$sig])
+  text(dd[dd$sig == 'red',]$M~dd[dd$sig == 'red',]$A,
+       labels=dd[dd$sig == 'red',]$gene,
+       data=dd, cex=0.4, font=1,pos=1)
+}
 
-# Generate BAF values 
-source('/lustre/scratch117/casm/team274/mt22/CN_methods/scripts/generateCoverageAndBAF.R')
-baf.out = generateCoverageAndBAF(BAM = tumourDNA,refGenome = refGenome,hSNPs=hSNPs,outPath = '/lustre/scratch117/casm/team274/mt22/CN_methods/PD46693_cov_BAF.RDS',nParallel=24)
+saveFig(file.path(res,paste0('PD46693_MAplot')),plotFun,rawData = dd,width = 4,height = 2.6,res=500)
+
+
+
+
+# Plot Tumour bulkDNA BAF  
+refGenome = '/nfs/users/nfs_m/my4/Projects/FetalCN/Data/DNA/genomeDNA.fa'
+refGenome10X = '/nfs/users/nfs_m/my4/Projects/FetalCN/Data/scRNA/genomeRNA.fa'
+liftChain = '/nfs/users/nfs_m/my4/Projects/FetalCN/Data/hg19ToHg38_noChr.over.chain'
+gtf = '/nfs/users/nfs_m/my4/Projects/FetalCN/Data/gtf10X_GRCh38_120.gtf'
+txdb = makeTxDbFromGFF(gtf)
+gns = genes(txdb)
+nParallel=60
+setwd('/lustre/scratch117/casm/team274/mt22/CN_methods/alleleIntegrator_output/NB/')
+for(PDID in unique(projMani$PDID)){
+  message(sprintf('%s ....',PDID))
+  outDir = file.path('./',PDID)
+  if(!file.exists(outDir)){
+    print('Making new Dir')
+    dir.create(outDir)
+  }
+  
+  # Set Sample specific params
+  donorMani = projMani[projMani$PDID == PDID,]
+  tumourDNA = unique(donorMani$tumourDNA[!is.na(donorMani$tumourDNA)])
+  patientDNA = unique(donorMani$patientDNA[!is.na(donorMani$patientDNA)])
+  
+  ######################
+  # Call and phase SNPs
+  hSNPs = findHetSNPs(patientDNA,refGenome,file.path(outDir,paste0(PDID,'_patient_hetSNPs.vcf')),nParallel=24)
+  #Expectation is that we'll find ~ 3 million of them
+  message(sprintf("Found %s heterozygous SNPs",prettyNum(length(hSNPs),big.mark=',')))
+  hSNPs = generateCoverageAndBAF(BAM = tumourDNA,refGenome = refGenome,hSNPs=hSNPs,outPath = paste0('/lustre/scratch117/casm/team274/mt22/CN_methods/',PDID,'_cov_BAF.RDS'),nParallel=24)
+  
+}
+
+
+baf.out = generateCoverageAndBAF(BAM = tumourDNA,refGenome = refGenome,hSNPs=hSNPs,outPath = paste0('/lustre/scratch117/casm/team274/mt22/CN_methods/',PD46693,'_cov_BAF.RDS',nParallel=24)
 
 plotFun = function(noFrame=T,noPlot=FALSE,minCoverage=10){
-  
   #Work out the chromosome boundaries
   chrsToPlot=c(1:22)
   chrs = chrsToPlot
@@ -1656,8 +1634,6 @@ plotFun = function(noFrame=T,noPlot=FALSE,minCoverage=10){
   tmp = sapply(split(start(filt),as.character(seqnames(filt))),max)
   chrLens[is.na(chrLens)] = tmp[names(chrLens)[is.na(chrLens)]]
   chrLens = as.numeric(chrLens[chrs])
-  
-  
   
   #Filter to just the ones that we trust
   filt = hSNPs[hSNPs$coverage>=minCoverage,]
@@ -1678,7 +1654,6 @@ plotFun = function(noFrame=T,noPlot=FALSE,minCoverage=10){
        xaxt='n',
        yaxt='n',
        xlab='',
-       #xlab=ifelse(plotASCAT,'','Chromosomes'),
        ylab='BAF',
        xaxs='i',
        yaxs='i',

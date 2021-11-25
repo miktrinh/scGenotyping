@@ -1,4 +1,5 @@
 # Run AlleleIntegrator on Neuroblastoma samples
+setwd('/lustre/scratch117/casm/team274/mt22/CN_methods/alleleIntegrator_output/NB/')
 
 #############
 # Libraries #
@@ -12,12 +13,21 @@ library(GenomicFeatures)
 library(Seurat)
 library(readxl)
 library(tidyverse)
+source('../../scripts/finalScripts/misc.R')
+
 
 #########################
 # Set Global parameters #
 #########################
 tgtChrs=c(1:22) 
 minSegLen=1e6
+subCl.minSegLen=2e7
+
+# Import Manifest
+projMani = read_excel("../../../projectManifest.xlsx",sheet = "NB_mani")
+# Import chromInfo
+chromInfo_fp = '/lustre/scratch117/casm/team274/mt22/chrom_abspos_kb.txt'
+chromInfo = read_delim(chromInfo_fp,delim = '\t',col_names = T)
 
 refGenome = '/nfs/users/nfs_m/my4/Projects/FetalCN/Data/DNA/genomeDNA.fa'
 refGenome10X = '/nfs/users/nfs_m/my4/Projects/FetalCN/Data/scRNA/genomeRNA.fa'
@@ -29,24 +39,12 @@ nParallel=60
 
 nb.srat = readRDS('/lustre/scratch117/casm/team274/mt22/CN_methods/NB_ann.rds')
 
-nb.srat@meta.data$AI_sc_call3 = NA
-nb.srat@meta.data$postProb_abbFrac3 = as.numeric(NA)
-nb.srat@meta.data$postProb_normFrac3 = as.numeric(NA)
+nb.srat@meta.data$AI_sc_call = NA
+nb.srat@meta.data$postProb_abbFrac = as.numeric(NA)
+nb.srat@meta.data$postProb_normFrac = as.numeric(NA)
 
 #----------- Run AlleleIntegrator on NB dataset (5 samples)
 #----------------------------------------------------------- 
-setwd('/lustre/scratch117/casm/team274/mt22/CN_methods/alleleIntegrator_output/NB/')
-# 1. Preprocessing / QCing GOSH NB data (5 donors) ####
-# Import Manifest
-projMani = read_excel("../../../projectManifest.xlsx",sheet = "NB_mani")
-#View(projMani)
-# Import chromInfo
-chromInfo_fp = '/lustre/scratch117/casm/team274/mt22/chrom_abspos_kb.txt'
-chromInfo = read_delim(chromInfo_fp,delim = '\t',col_names = T)
-
-
-
-PDID = unique(projMani$PDID)[4]
 for(PDID in unique(projMani$PDID)){
   message(sprintf('Running AlleleIntegrator for Sample %s',PDID))
   outDir = file.path('./',PDID)
@@ -86,10 +84,14 @@ for(PDID in unique(projMani$PDID)){
   # Battenberg .summary.csv file - only summarize Major Clone CNV, does not included CN states of minor clones
   btb.fp = unique(donorMani$battenbergFp)
   #----- Processing Battenberg data -------#
-  segs = annotateBTB(btb.fp,minSegLen = minSegLen,subCl.minSegLen = 2e7,PDID,tgtChrs=tgtChrs,removeBalancedSegs=T,longFormat = F,method = 'allelicRatio')  
+  segs = annotateBTB(btb.fp,minSegLen = minSegLen,subCl.minSegLen = subCl.minSegLen,PDID,tgtChrs=tgtChrs,removeBalancedSegs=T,longFormat = F,method = 'allelicRatio')  
   
+  if(PDID=='PD46693'){
+    segs = segs[segs$Idx !=6,]
+    segs[segs$Idx == 7,]$Start = 1
+  }
   segs = GRanges(segs$Chr,IRanges(segs$Start,segs$Stop),
-                     totCN=segs$tumTot, idx=segs$Idx, chr=segs$Chr, 
+                       totCN=segs$tumTot, idx=segs$idx, chr=segs$Chr, 
                      patNum=segs$patNum, matNum=segs$matNum,
                      tumFrac = segs$tumFrac,clonalType=segs$type)
   names(segs) = seqnames(segs)
@@ -120,6 +122,7 @@ for(PDID in unique(projMani$PDID)){
   if(PDID == 'PD42752-2'){
     segs = segs[names(segs) != 1]
   }
+  
   par(mfrow=c(1,1))
   phSNPs = phaseSNPsFromCN(hSNPs,segs,refGenome,tumourDNA,outPath=file.path(outDir,paste0(PDID,'_tumour_countAtHetSNPs.tsv')),nParallel=nParallel,plotMixtures=F)
   #Liftover to GRCh38
@@ -130,7 +133,6 @@ for(PDID in unique(projMani$PDID)){
   ########################
   # Integrate with 10X.  
   #If the majority of the high coverage SNPs don't look heterozygous, something has gone wrong...
-
   phCnts = getAllelicExpression(loci=phSNPs38,refGenome = refGenome10X,bams = bams10X,
                                 outputs=file.path(outDir,paste0(PDID,'_',names(bams10X),'_scRNA_alleleCounts.tsv')),
                                 nParallel=nParallel)
@@ -168,9 +170,27 @@ for(PDID in unique(projMani$PDID)){
   
   ############
   # Inference
+  if(PDID == 'PD46693'){
+    pp.subCl = abbSegProb(gCnts,od,segs = gCnts@metadata$segs,abbFrac = 'tumFrac',globalOnoly=TRUE)  
+  }
+  
   #dropping sub-clone segments when calculating GenomeWide probs
   subCl.segs = unique(segs[segs$clonalType == 'sub',]$chr)
-  pp = abbSegProb(gCnts,od,segs = gCnts@metadata$segs[!gCnts@metadata$segs$chr %in% subCl.segs],abbFrac = 'tumFrac',globalOnoly=TRUE)  
+  idx.toRm = c()
+  for(chr in subCl.segs){
+    maj.seg = segs[seqnames(segs) == chr & segs$clonalType == 'maj']
+    min.seg = segs[seqnames(segs) == chr & segs$clonalType == 'sub']
+    if(length(findOverlaps(maj.seg,min.seg))>0){
+      if(unique(maj.seg$tumFrac) != unique(min.seg$tumFrac)){
+        idx.toRm = c(idx.toRm,maj.seg$idx,min.seg$idx)  
+      }
+    }else{
+      # Remove subclone segment
+      idx.toRm = c(idx.toRm,min.seg$idx)  
+    }
+  }
+  
+  pp = abbSegProb(gCnts,od,segs = gCnts@metadata$segs[!gCnts@metadata$segs$idx %in% idx.toRm],abbFrac = 'tumFrac',globalOnoly=TRUE)  
   
   #############
   # Validation
@@ -185,19 +205,17 @@ for(PDID in unique(projMani$PDID)){
   }
   srat@meta.data$call = NA
   srat@meta.data$call[m] = ifelse(pp[seqnames(pp) == 'genomeWide',]$maxPostProb>0.99,pp[seqnames(pp) == 'genomeWide',]$mostLikelyState,'Uncalled')
-  DimPlot(srat,group.by='call')
-  table(srat@meta.data$call,srat@meta.data$finalAnn)
-  table(nb.srat@meta.data$AI_sc_call2,nb.srat@meta.data$finalAnn,nb.srat@meta.data$PDID)
+  
   # Add to the big all sample NB sratObject
   m = match(pp[seqnames(pp) == 'genomeWide',]$cellID,nb.srat@meta.data$cellID)
   if(sum(is.na(m)) > 0){
     stop(sprintf('%s failed at final step...',PDID))
   }
   
-  nb.srat@meta.data$AI_sc_call3[m] = ifelse(pp[seqnames(pp) == 'genomeWide',]$maxPostProb>0.99,pp[seqnames(pp) == 'genomeWide',]$mostLikelyState,'Uncalled')
-  nb.srat@meta.data$postProb_abbFrac3[m] = pp[seqnames(pp) == 'genomeWide',]$postProb_abbFrac
-  nb.srat@meta.data$postProb_normFrac3[m] = pp[seqnames(pp) == 'genomeWide',]$postProb_normFrac
-}
+  nb.srat@meta.data$AI_sc_call[m] = ifelse(pp[seqnames(pp) == 'genomeWide',]$maxPostProb>0.99,pp[seqnames(pp) == 'genomeWide',]$mostLikelyState,'Uncalled')
+  nb.srat@meta.data$postProb_abbFrac[m] = pp[seqnames(pp) == 'genomeWide',]$postProb_abbFrac
+  nb.srat@meta.data$postProb_normFrac[m] = pp[seqnames(pp) == 'genomeWide',]$postProb_normFrac
+
   
   ##############
   # For BAF dot plot
@@ -219,68 +237,20 @@ saveRDS(nb.srat,'/lustre/scratch117/casm/team274/mt22/CN_methods/NB_ann.rds')
 
 
 
-####===== Pink/Grey barplot ======####
-# Extract AI.NB output
-nb.AIdata = nb.srat@meta.data %>% group_by(PD_ID,cell_type,AI_sc_call) %>% summarise(nCells = n())
-colnames(nb.AIdata) = c('PD_ID','cell_type','AI_output','nCells')
-nb.AIdata$PD_ID = factor(nb.AIdata$PD_ID,levels = c("PD42184","PD42752-1","PD42752-2","PD46693","PD43255"))
-nb.AIdata$AI_output = ifelse(nb.AIdata$AI_output == 'abbFrac','Aneuploid',
-                             ifelse(nb.AIdata$AI_output == 'normFrac','Diploid','Uncalled'))
-#CKdata$CKpred.normREF.default.80perc.2397 = factor(CKdata$CKpred.normREF.default.80perc.2397,levels=c('NA','diploid','aneuploid'))
-pdf('~/work/AIplots/oct21/NB_AI_anpdip.pdf',width = 4,height = 4)
-ggplot(nb.AIdata,aes(y=nCells,fill=AI_output,x=PD_ID))+
-  geom_bar(position="fill", stat="identity",width = 0.7)+
-  facet_grid(vars(cell_type)) + 
-  scale_fill_manual(values = c('#DE006F','#D3D3D3','grey'))+
-  theme_bw(base_size = 5)+ labs(fill="AI output")+ xlab('') + ylab('') +
-  scale_y_continuous(n.breaks = 4)+
-  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-        panel.border = element_rect(colour = 'black'),
-        axis.ticks.x = element_blank())
-#axis.text.x = element_text(angle =90,hjust = 1,colour = 'black'),
-dev.off()
-
-
-####--------- GOHS025 --------#####
-gosh25 = subset(nb.srat,subset = gosh_ID == 'GOSH25')
-m = match(pp[seqnames(pp) == 'genomeWide',]$cellID,gosh25@meta.data$cellID)
-if(sum(is.na(m)) > 0){
-  stop(sprintf('%s failed at final step...',PDID))
-}
-#gosh25@meta.data$probs[m] = pp[seqnames(pp) == 'genomeWide',]$maxPostProb
-
+####--------- PD46693 --------#####
+pd46693 = subset(nb.srat,subset = PD_ID == 'PD46693')
 # Add chr4 probs
-pp = abbSegProb(gCnts,od,segs = gCnts@metadata$segs,abbFrac = 'tumFrac',globalOnoly=F)  
-pp.subCl = pp[names(pp) == '4.1']
-m = match(pp.subCl$cellID,gosh25@meta.data$cellID)
-sum(is.na(m))
-gosh25@meta.data$chr4.probAbberant2[m] = pp.subCl$probAbberant
+m = match(pp.subCl[names(pp.subCl) == '4.1',]$cellID,pd46693@meta.data$cellID)
 
-FeaturePlot(gosh25, features = 'chr4.probAbberant')
+if(sum(is.na(m)) > 0){
+  stop(sprintf('%s - Mismatches in cellIDs',PDID))
+}
 
-saveRDS(gosh25,'/lustre/scratch117/casm/team274/mt22/CN_methods/alleleIntegrator_output/NB/GOSH25_probAbb.rds')
+pd46693@meta.data$chr4.probAbberant[m] = pp.subCl[names(pp.subCl) == '4.1',]$probAbberant
 
-# just tumour cells
-tum.gosh25 = subset(gosh25,subset = cell_type == 'Tumour')
-# Recluster
-# Clustering
-tum.gosh25 = NormalizeData(tum.gosh25)
-tum.gosh25 = FindVariableFeatures(tum.gosh25)
-tum.gosh25 = ScaleData(tum.gosh25, features = rownames(tum.gosh25))
-tum.gosh25 = RunPCA(tum.gosh25, npcs = 75)
-ElbowPlot(tum.gosh25, ndims = 75)
-tum.gosh25 = FindNeighbors(tum.gosh25, dims=1:40)
-tum.gosh25 = FindClusters(tum.gosh25,resolution = 1)
-tum.gosh25 = RunUMAP(tum.gosh25, dims=1:40)
-tum.gosh25$AI_sc_call
-sum(is.na(tum.gosh25$chr4.probAbberant))
-tum.gosh25$chr4.probAbberant = as.numeric(tum.gosh25$chr4.probAbberant)
-pdf('~/work/AIplots/oct21/gosh25_Tumour_umap.pdf',width = 4,height = 4)
-FeaturePlot(tum.gosh25,features = 'chr4.probAbberant',cols = brewer.pal(5,'RdBu')[4:1],pt.size = 0.4)+
-  ggtitle('GOSH25 - Tumour Subclone')+
-  theme(text = element_text(size=10))
-dev.off()
-DimPlot(tum.gosh25,group.by = 'AI_sc_call')
+FeaturePlot(pd46693, features = 'chr4.probAbberant')
+
+saveRDS(pd46693,'/lustre/scratch117/casm/team274/mt22/CN_methods/alleleIntegrator_output/NB/PD46693_probAbb.rds')
 
 
 

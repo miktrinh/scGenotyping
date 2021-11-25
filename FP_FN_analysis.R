@@ -40,9 +40,9 @@ CKdata$CopyKat_output = ifelse(is.na(CKdata$CopyKat_output),'Uncalled',
                                ifelse(CKdata$CopyKat_output == 'aneuploid','Aneuploid','Diploid'))
 ######################################################
 ## Setting arbitary threshold of 0.2
-binSize=5e7
+binSize=25e6
 threshold = 0.2
-main.srat = srat
+main.srat = nb.srat
 #----- Processing CopyKat results -------#
 out = data.frame()
 
@@ -118,6 +118,12 @@ for(k in 1:length(copykat.results)){
         for(i in 1:length(stops)){
           start = starts[i]
           stop = stops[i]
+          #if(i == length(stops) - 1){
+          #  segLen = start - stop +1
+          #  segLen_next = start[i+1] - stop[i+1] +1
+          #  if(segLen_next)
+          #}
+          
           tmp = chr.cna[chr.cna$chrompos > start & chr.cna$chrompos<=stop,]
           if(nrow(tmp) == 0){
             tmp2 = data.frame(chr,start,stop,meanScore=0,cna=cna,celltype=celltype,PDID=sample)
@@ -138,6 +144,8 @@ for(k in 1:length(copykat.results)){
 out$absMeanScore = abs(out$meanScore)
 out$predCall = ifelse(out$absMeanScore > 0.2,'yes','no')
 
+out$segLen = out$stop - out$start 
+out = out[out$segLen > 20e6,]
 d = out %>% group_by(PDID,celltype,cna,predCall) %>% tally()
 
 d$truth = ifelse(d$celltype == 'Tumour',as.character(d$cna),FALSE)

@@ -34,7 +34,7 @@ for(sheet in c('NB_mani','RCC_mani')){
   
   ###1. Caveman output
   #PDID=unique(projMani$PDID)[1]
-  for(PDID in unique(projMani$PDID)[-1]){
+  for(PDID in unique(projMani$PDID)){
     print(PDID)
     
     donorMani = projMani[projMani$PDID == PDID,]
@@ -111,7 +111,7 @@ ggplot(all.out,aes(x=PDID,y=(nSNPs)))+
   ylab('# SNVs with >=1 count')
 
 
-write.csv(all.out,'/lustre/scratch117/casm/team274/mt22/CN_methods/snvCov_allout.csv')  
+write.csv(all.out,'/lustre/scratch117/casm/team274/mt22/CN_methods/snvCov_allout_2.csv')  
 
 
 
@@ -183,7 +183,7 @@ for(sheet in c('NB_mani','RCC_mani')){
 
 all.out$totalReads = ifelse(is.na(all.out$totalReads),0,as.numeric(all.out$totalReads))
 all.out$tumourType = ifelse(all.out$PDID %in% c("PD35918","PD37228","PD37104","PD36793"),'RCC','NB')
-write_csv(all.out,file = '../hSNPcov_allout.csv',col_names = T)
+write_csv(all.out,file = '../hSNPcov_allout_2.csv',col_names = T)
 
 
 ## Plot ####

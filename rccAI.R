@@ -1,4 +1,5 @@
 # Run AlleleIntegrator on RCC samples
+setwd('/lustre/scratch117/casm/team274/mt22/CN_methods/alleleIntegrator_output/RCC/')
 
 #############
 # Libraries #
@@ -12,12 +13,21 @@ library(GenomicFeatures)
 library(Seurat)
 library(readxl)
 library(tidyverse)
+source('../../scripts/finalScripts/misc.R')
+
 
 #########################
 # Set Global parameters #
 #########################
 tgtChrs=c(1:22) 
 minSegLen=1e6
+subCl.minSegLen=2e7
+
+# Import Manifest
+projMani = read_excel("/lustre/scratch117/casm/team274/mt22/projectManifest.xlsx",sheet = "RCC_mani")
+# Import chromInfo
+chromInfo_fp = '/lustre/scratch117/casm/team274/mt22/chrom_abspos_kb.txt'
+chromInfo = read_delim(chromInfo_fp,delim = '\t',col_names = T)
 
 refGenome = '/nfs/users/nfs_m/my4/Projects/FetalCN/Data/DNA/genomeDNA.fa'
 refGenome10X = '/nfs/users/nfs_m/my4/Projects/FetalCN/Data/scRNA/genomeRNA.fa'
@@ -29,24 +39,14 @@ nParallel=60
 
 rcc.srat = readRDS('/lustre/scratch117/casm/team274/mt22/CN_methods/RCC_PCT_ann3sub.rds')
 
-rcc.srat@meta.data$AI_sc_call2 = NA
-rcc.srat@meta.data$postProb_abbFrac2 = as.numeric(NA)
-rcc.srat@meta.data$postProb_normFrac2 = as.numeric(NA)
-#------ Figure 2E - AlleleIntegrator for NB datasets 
-#--------------------------------------------------------- 
-setwd('/lustre/scratch117/casm/team274/mt22/CN_methods/alleleIntegrator_output/RCC/')
+rcc.srat@meta.data$AI_sc_call = NA
+rcc.srat@meta.data$postProb_abbFrac = as.numeric(NA)
+rcc.srat@meta.data$postProb_normFrac = as.numeric(NA)
 
-# 1. Preprocessing / QCing GOSH NB data (5 donors) ####
-# Import Manifest
-projMani = read_excel("/lustre/scratch117/casm/team274/mt22/projectManifest.xlsx",sheet = "RCC_mani")
-View(projMani)
-# Import chromInfo
-chromInfo_fp = '/lustre/scratch117/casm/team274/mt22/chrom_abspos_kb.txt'
-chromInfo = read_delim(chromInfo_fp,delim = '\t',col_names = T)
-
-
-PDID=unique(projMani$PDID)[4]
+#----------- Run AlleleIntegrator on RCC dataset (4 samples)
+#----------------------------------------------------------- 
 for(PDID in unique(projMani$PDID)){
+  message(sprintf('Running AlleleIntegrator for Sample %s',PDID))
   outDir = file.path('./',PDID)
   if(!file.exists(outDir)){
     print('Making new Dir')
@@ -63,6 +63,7 @@ for(PDID in unique(projMani$PDID)){
     message(sprintf('[DonorID: %s ]\nIncorrect file paths: \ntumourDNA: %s\npatientDNA: %s',PDID,tumourDNA,patientDNA))
     next()
   }
+  
   bams10X = unique(donorMani$bams10X)
   names(bams10X) = gsub('^4602','',donorMani$sangerSampleID)
   
@@ -77,7 +78,7 @@ for(PDID in unique(projMani$PDID)){
   # Battenberg .summary.csv file - only summarize Major Clone CNV, does not included CN states of minor clones
   btb.fp = unique(donorMani$battenbergFp[!grepl('^n_',donorMani$SampleID)])
   #----- Processing Battenberg data -------#
-  segs = annotateBTB(btb.fp,minSegLen = minSegLen,subCl.minSegLen = 2e7,PDID,tgtChrs=tgtChrs,removeBalancedSegs=T,longFormat = F,method = 'allelicRatio')  
+  segs = annotateBTB(btb.fp,minSegLen = minSegLen,subCl.minSegLen = subCl.minSegLen,PDID,tgtChrs=tgtChrs,removeBalancedSegs=T,longFormat = F,method = 'allelicRatio')  
   
   segs = GRanges(segs$Chr,IRanges(segs$Start,segs$Stop),
                  totCN=segs$tumTot, idx=segs$Idx, chr=segs$Chr, 
@@ -152,16 +153,34 @@ for(PDID in unique(projMani$PDID)){
   
   #Get over-dispersion
   od = calcOverDispersion(gCnts)
+  
+  
   ############
   # Inference
   #dropping sub-clone segments when calculating GenomeWide probs
   subCl.segs = unique(segs[segs$clonalType == 'sub',]$chr)
-  pp = abbSegProb(gCnts,od,segs = gCnts@metadata$segs[!gCnts@metadata$segs$chr %in% subCl.segs],abbFrac = 'tumFrac',globalOnoly=TRUE)  
+  
+  idx.toRm = c()
+  for(chr in subCl.segs){
+    maj.seg = segs[seqnames(segs) == chr & segs$clonalType == 'maj']
+    min.seg = segs[seqnames(segs) == chr & segs$clonalType == 'sub']
+    if(length(findOverlaps(maj.seg,min.seg))>0){
+      if(unique(maj.seg$tumFrac) != unique(min.seg$tumFrac)){
+        idx.toRm = c(idx.toRm,maj.seg$idx,min.seg$idx)  
+      }
+    }else{
+      # Remove subclone segment
+      idx.toRm = c(idx.toRm,min.seg$idx)  
+    }
+  }
+  
+  pp = abbSegProb(gCnts,od,segs = gCnts@metadata$segs[!gCnts@metadata$segs$idx %in% idx.toRm],abbFrac = 'tumFrac',globalOnoly=TRUE)  
   
   #############
   # Validation
   dat = plotRawData(gCnts,returnData=TRUE)
   plotPosteriorHeatmap(pp,'nLL')
+  
   #Integrate global call with Seurat, dropping chr4 with sub-clone
   m = match(pp[seqnames(pp) == 'genomeWide',]$cellID,srat@meta.data$cellID)
   sum(is.na(m))
@@ -170,9 +189,7 @@ for(PDID in unique(projMani$PDID)){
   }
   srat@meta.data$call = NA
   srat@meta.data$call[m] = ifelse(pp[seqnames(pp) == 'genomeWide',]$maxPostProb>0.99,pp[seqnames(pp) == 'genomeWide',]$mostLikelyState,'Uncalled')
-  DimPlot(srat,group.by='call')
-  table(srat@meta.data$call,srat@meta.data$finalAnn)
-  table(rcc.srat@meta.data$AI_sc_call,rcc.srat@meta.data$finalAnn,rcc.srat@meta.data$PDID)
+  
   # Add to the big sratObject
   m = match(pp[seqnames(pp)=='genomeWide']$cellID,rcc.srat@meta.data$cellID)
   if(sum(is.na(m)) > 0){
@@ -182,7 +199,7 @@ for(PDID in unique(projMani$PDID)){
   rcc.srat@meta.data$AI_sc_call2[m] = ifelse(pp[seqnames(pp)=='genomeWide',]$maxPostProb>0.99,pp[seqnames(pp)=='genomeWide']$mostLikelyState,'Uncalled')
   rcc.srat@meta.data$postProb_abbFrac2[m] = pp[seqnames(pp) == 'genomeWide',]$postProb_abbFrac
   rcc.srat@meta.data$postProb_normFrac2[m] = pp[seqnames(pp) == 'genomeWide',]$postProb_normFrac
-  
+
   
   ##############
   # For BAF plot
@@ -195,7 +212,6 @@ for(PDID in unique(projMani$PDID)){
   clusterIDs = setNames(srat@meta.data$finalAnn,srat@meta.data$cellID)
   gCnts = filterCells(phCnts,clusterIDs=clusterIDs,normIDs=c('Leukocytes'),dropUninformative = F)
   saveRDS(gCnts,file.path('/lustre/scratch117/casm/team274/mt22/CN_methods/alleleIntegrator_output',paste0(PDID,'_2gCnts_allhSNPs.RDS')))
-  
 }
 
 

@@ -437,11 +437,11 @@ annotateBTB = function(btb.fp,PDID,minSegLen=1e6,subCl.minSegLen=1e7,tgtChrs=c(1
   out=out[order(out$Chr,out$Start),]
   
   # Write BTB output
-  out2 = out[,c("Chr","Start","Stop","matNum","patNum","type" )]
-  out2$subcloneCN = ifelse(out2$type == 'sub',T,F)
-  out2=out2[,-c(6)]
-  out2$PDID = PDID
-  write_delim(out2,paste0('../../BTB_output_used/',PDID,'_btbCN.txt'),delim = '\t',col_names = T)
+  #out2 = out[,c("Chr","Start","Stop","matNum","patNum","type" )]
+  #out2$subcloneCN = ifelse(out2$type == 'sub',T,F)
+  #out2=out2[,-c(6)]
+  #out2$PDID = PDID
+  #write_delim(out2,paste0('../../BTB_output_used/',PDID,'_btbCN.txt'),delim = '\t',col_names = T)
   
   return(out)
 }
