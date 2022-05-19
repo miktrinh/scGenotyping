@@ -288,3 +288,37 @@ write_delim(tf.res[tf.res$sig==T,],'../../PD46693_TF_pseudobulkDESeq2_sigOnly.tx
 write_delim(res.filtered,'~/CN_method_tmp/PD46693_allGenes_pseudobulkDESeq2_all.txt',delim = '\t',col_names = T)
 write_delim(tf.res[tf.res$sig==T,],'~/CN_method_tmp/PD46693_TF_pseudobulkDESeq2_sigOnly.txt',delim = '\t',col_names = T)
 
+pseudoCnt$sig = ifelse(rownames(pseudoCnt) %in% c(sigGenes,tf.sig),'yes','no')
+pseudoCnt$sig = ifelse(rownames(pseudoCnt) %in% c(sigGenes,tf.sig),'yes','no')
+pseudoCnt$sig = ifelse(rownames(pseudoCnt) %in% c('NTRK1', 'BCL11A', 'TH', 'CHGB', 'HMX1'),'red',as.character(pseudoCnt$sig))
+sigcol = c(yes = 'black',no='lightgrey',red = 'red')
+
+
+plotFun = function(noFrame=FALSE,noPlot=FALSE){
+  par(mfrow=c(1,1),mar=c(1,1,0.2,0.1))
+  plot(pseudoCnt$A,pseudoCnt$M,
+       las=1,pch=19,cex=0.02,col=sigcol[pseudoCnt$sig],
+       #xlim =c(-3.4,-2.6),ylim=c(-0.01,0.015),
+       #xlim =c(-3,16),ylim=c(-4.5,5.5),
+       #type='n',
+       xlab= 'Mean log2 normalized count',ylab='log2 FC',
+       #xaxt='n',yaxt='n',
+       frame.plot=T)
+  #mtext('Mean log2 normalized count',side = 1,line = 0.1,cex = 0.7)
+  #mtext('log2 FC',side = 2,line = 0.1,cex = 0.7)
+  
+  segments(x0=-30,x1 = 0, 
+           y0=0, y1=0,
+           col = 'black')
+  points(pseudoCnt$A,pseudoCnt$M,pch=19,cex=0.02,col=sigcol[pseudoCnt$sig])
+  points(pseudoCnt[pseudoCnt$sig == 'red',]$A,pseudoCnt[pseudoCnt$sig == 'red',]$M,pch=19,cex=0.02,col=sigcol[pseudoCnt[pseudoCnt$sig == 'red',]$sig])
+  text(pseudoCnt[pseudoCnt$lab == 'yes',]$M~pseudoCnt[pseudoCnt$lab == 'yes',]$A,
+       labels=rownames(pseudoCnt[pseudoCnt$lab == 'yes',]),
+       data=pseudoCnt, cex=0.4, font=1,pos=1)
+}
+
+saveFig(file.path(resd,paste0('GOSH25_MAplot')),plotFun,width = 3.5,height = 2.4,res=500)
+pb.out$gene = rownames(pb.out)
+write.csv(pb.out,'~/CN_method_tmp/figures/GOSH25_MAplot_allGenes_pseudobulkDESeq2.csv')
+
+

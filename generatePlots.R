@@ -70,6 +70,10 @@ outDir='Plots'
 resDir='~/CN_method_tmp/tmp_plots/'
 res = '~/CN_method_tmp/figures_v2/'
 
+outDir='Plots'
+resDir='~/CN_method_tmp/tmp_plots/'
+res = '~/lustre_mt22/CN_methods/revision_2204/plots/'
+
 # Import RCC and NB datasets
 rcc.srat = readRDS('/lustre/scratch117/casm/team274/mt22/CN_methods/RCC_PCT_ann3sub.rds')
 nb.srat = readRDS('/lustre/scratch117/casm/team274/mt22/CN_methods/NB_ann.rds')
@@ -78,164 +82,124 @@ chromInfo = read.delim('/lustre/scratch117/casm/team274/mt22/chrom_abspos_kb.txt
 
 # Figure 1C - SNVs Coverage ####
 snvHist = function(){
-  all.out = read.csv('/lustre/scratch117/casm/team274/mt22/CN_methods/snvCov_allout_2.csv')
-  all.out = all.out[all.out$finalAnn == 'Tumour',]
+  #all.out = read.csv('/lustre/scratch117/casm/team274/mt22/CN_methods/snvCov_allout_2.csv')
+  all.out = read.csv('/lustre/scratch117/casm/team274/mt22/CN_methods/revision_2204/snvCov_allout.csv')
+  #all.out = all.out[all.out$finalAnn == 'Tumour',]
   #all.out = read.csv('/lustre/scratch117/casm/team274/mt22/CN_methods/snvCov_allout_withAnn.csv')
   
   all.out$cat = ifelse(all.out$totalReads <5,all.out$totalReads,
-                       ifelse(all.out$totalReads <=10,'5-10','11+'))
-  dd=all.out %>% group_by(tumourType,cat) %>% summarise(nCells = n())
-  dd$cat = factor(dd$cat,levels = c('0','1','2','3','4','5-10','11+'))
-  
-  
+                       ifelse(all.out$totalReads <=10,'5-10','>10'))
+  dd=all.out %>% group_by(tumCat,cat) %>% summarise(nCells = n())
+  dd$cat = factor(dd$cat,levels = c('0','1','2','3','4','5-10','>10'))
   
   plotFun = function(noFrame=FALSE,noPlot=FALSE){
-    par(mar=c(1.5,2.3,0.2,0.2),xpd=T)
-    plot(seq(0,9,1),rep(c(0),10),ylim=c(-4,1500),xlim=c(0,10),
+    ylim_max = max(dd$nCells)
+    ylab = round(seq(0,ylim_max+10,length.out = 5),digits = -2)
+    
+    par(mar=c(1.0,2.3,0.2,0.5),xpd=T)
+    plot(seq(0,9,1),rep(c(0),10),ylim=c(-3,ylim_max),xlim=c(0,10),
          las=1,
          type='n',frame.plot = F,axes = F)
     #axis(2,at=c(1,0.5,0),las=1,pos = 0.1,tck=-0.02,cex.axis=0.75,lwd.ticks = 0,hadj = 0.5)
-    axis(side = 2,at = c(0,500,1000,1500),labels = c(0,500,1000,1500),
-         tck=-0.02,lwd = 0.8,cex.axis=0.7,las=1,pos = -0.2,lwd.ticks = 0.8,hadj = 0.45)
+    axis(side = 2,at =ylab,labels = ylab,
+         tck=-0.015,lwd = 0.8,cex.axis=0.4,las=1,pos = -0.2,lwd.ticks = 0.5,hadj = 0.05)
     axis(side = 1,at = c(0,10),labels = c('',''),
-         tck=-0.001,lwd = 0.8,cex.axis=0.7,las=1,pos = -10,lwd.ticks = 0,hadj = 0.4)
+         tck=-0.001,lwd = 0.8,cex.axis=0.3,las=1,pos = -10,lwd.ticks = 0,hadj = 0.4)
     
-    text(x=seq(0.55,9.55,1.5),y=-70,as.character(levels(dd$cat)),cex = 0.7)
+    text(x=seq(0.55,9.55,1.5),y=-350,as.character(levels(dd$cat)),cex = 0.4)
     
-    mtext(side=1,text = 'SNVs Coverage',family='Helvetica',font = 1,cex = 0.8,line = 0.3)
-    mtext(side=2,text = '# Cells',family='Helvetica',font = 1,cex = 0.8,line = 1.5)
+    mtext(side=1,text = 'SNVs Coverage',family='Helvetica',font = 1,cex = 0.55,line = 0.1)
+    mtext(side=2,text = '# Cells',family='Helvetica',font = 1,cex = 0.55,line = 1)
+    
+    
+    ### Bar Plot for pediatric cancer
     xleft = seq(0,9,1.5)
     xright = xleft + 0.5
     ybottom = 0
-    ytop= dd[dd$tumourType=='NB',]$nCells[c(1,2,4,5,6,7,3)]
+    ytop= dd[dd$tumCat=='pediatric',]$nCells[order(dd[dd$tumCat=='pediatric',]$cat)]
     #ytops = cumsum(dat)
     rect(xleft=xleft,
          xright=xright,
          ybottom=ybottom,
-         ytop=ytop,col='lightgrey',
+         ytop=ytop,
+         #col='lightgrey',
+         col='white',
          #col = ccs[names(dat)],
          lwd = 0.7,
          border = 'black')
     
-    
+    ### Bar Plot for Adult cancer (RCC)
     xleft = seq(0.6,9.6,1.5)
     xright = xleft + 0.5
     ybottom = 0
-    ytop= dd[dd$tumourType=='RCC',]$nCells[c(1,2,4,5,6,7,3)]
+    ytop= dd[dd$tumCat=='adult',]$nCells[order(dd[dd$tumCat=='adult',]$cat)]
     #ytops = cumsum(dat)
     rect(xleft=xleft,
          xright=xright,
          ybottom=ybottom,
-         ytop=ytop,col='#878787',
+         ytop=ytop,
+         #col='#878787',
+         col='black',
          #col = ccs[names(dat)],
          lwd = 0.7,
          border = 'black')
-    cols = c(NB='lightgrey',RCC = '#878787')
-    legend(y=1200, x=6.5,legend=names(cols),fill = cols,lwd = 0,cex = 1.2,lty = NA,xjust = 0,seg.len=0.01,box.lwd = 1.0,bty = 'n')
+    #cols = c(NB='lightgrey',RCC = '#878787')
+    cols = c('Pediatric cancer' = 'white','Adult cancer'='black')
+    legend(y=9000, x=5.5,legend=names(cols),fill = cols,lwd = 0,cex = 0.45,lty = NA,xjust = 0,seg.len=0.01,box.lwd = 1.0,bty = 'n')
+    legend(y=7000, x=5.5,legend=sprintf('Total cells = %d',sum(dd$nCells)),lwd = 0,cex = 0.4,lty = NA,xjust = 0,seg.len=0.01,box.lwd = 1.0,bty = 'n')
   }
-  saveFig(file.path(res,paste0('SNVcov_distr_tumCellsonly')),plotFun,width = 2.1,height = 2.7,rawData = all.out)   
-  
-  
-  plotFun = function(noFrame=FALSE,noPlot=FALSE){
-    par(mar=c(1.5,2.3,0.2,0.2),xpd=T)
-    plot(seq(0,9,1),rep(c(0),10),ylim=c(-4,6000),xlim=c(0,10),
-         las=1,
-         type='n',frame.plot = F,axes = F)
-    #axis(2,at=c(1,0.5,0),las=1,pos = 0.1,tck=-0.02,cex.axis=0.75,lwd.ticks = 0,hadj = 0.5)
-    axis(side = 2,at = c(0,1000,2000,3000,4000,5000,6000),labels = c(0,'','',3000,'','',6000),
-         tck=-0.02,lwd = 0.8,cex.axis=0.7,las=1,pos = -0.2,lwd.ticks = 0.8,hadj = 0.45)
-    axis(side = 1,at = c(0,10),labels = c('',''),
-         tck=-0.001,lwd = 0.8,cex.axis=0.7,las=1,pos = -10,lwd.ticks = 0,hadj = 0.4)
-    
-    text(x=seq(0.55,9.55,1.5),y=-300,as.character(levels(dd$cat)),cex = 0.7)
-    
-    mtext(side=1,text = 'SNVs Coverage',family='Helvetica',font = 1,cex = 0.8,line = 0.3)
-    mtext(side=2,text = '# Cells',family='Helvetica',font = 1,cex = 0.8,line = 1.5)
-    xleft = seq(0,9,1.5)
-    xright = xleft + 0.5
-    ybottom = 0
-    ytop= dd[dd$tumourType=='NB',]$nCells[c(1,2,4,5,6,7,3)]
-    #ytops = cumsum(dat)
-    rect(xleft=xleft,
-         xright=xright,
-         ybottom=ybottom,
-         ytop=ytop,col='lightgrey',
-         #col = ccs[names(dat)],
-         lwd = 0.7,
-         border = 'black')
-    
-    
-    xleft = seq(0.6,9.6,1.5)
-    xright = xleft + 0.5
-    ybottom = 0
-    ytop= dd[dd$tumourType=='RCC',]$nCells[c(1,2,4,5,6,7,3)]
-    #ytops = cumsum(dat)
-    rect(xleft=xleft,
-         xright=xright,
-         ybottom=ybottom,
-         ytop=ytop,col='#878787',
-         #col = ccs[names(dat)],
-         lwd = 0.7,
-         border = 'black')
-    cols = c(NB='lightgrey',RCC = '#878787')
-    legend(y=5500, x=6.5,legend=names(cols),fill = cols,lwd = 0,cex = 0.8,lty = NA,xjust = 0,seg.len=0.01,box.lwd = 0.0,bty = 'n')
-  }
-  saveFig(file.path(res,paste0('SNVcov_distr_allCells')),plotFun,width = 2.1,height = 2.7,rawData = all.out)   
-  
-  
-  
-  
+  #saveFig(file.path(res,paste0('SNVcov_distr_tumCellsonly')),plotFun,width = 2.1,height = 2.7,rawData = all.out)   
+  saveFig(file.path(res,paste0('SNVcov_distr_allCells')),plotFun,width = 2.1,height = 2.2,rawData = all.out)   
 }
-
 
 
 
 
 # Figure 1D - hSNPs Coverage ####
 hsnpHist = function(){
-  all.out = read.csv('/lustre/scratch117/casm/team274/mt22/CN_methods/hSNPcov_allout_2.csv')
-  m=match(rcc.srat$cellID,all.out$cellID)
-  sum(is.na(m))
-  all.out$finalAnn2[m[!is.na(m)]] = rcc.srat$finalAnn2[!is.na(m)]
+  #all.out = read.csv('/lustre/scratch117/casm/team274/mt22/CN_methods/hSNPcov_allout_2.csv')
+  all.out = read.csv('/lustre/scratch117/casm/team274/mt22/CN_methods/revision_2204/hSNPcov_allout.csv')
+  #m=match(rcc.srat$cellID,all.out$cellID)
+  #sum(is.na(m))
+  #all.out$finalAnn2[m[!is.na(m)]] = rcc.srat$finalAnn2[!is.na(m)]
+  #
+  #m=match(all.out$cellID[all.out$tumourType =='NB'],nb.srat$cellID)
+  #sum(is.na(m))
+  #all.out$finalAnn2[all.out$tumourType =='NB'] = nb.srat$cell_type[m]
   
-  m=match(all.out$cellID[all.out$tumourType =='NB'],nb.srat$cellID)
-  sum(is.na(m))
-  all.out$finalAnn2[all.out$tumourType =='NB'] = nb.srat$cell_type[m]
   
+  #all.out = all.out[all.out$finalAnn2 == 'Tumour',]
   
-  all.out = all.out[all.out$finalAnn2 == 'Tumour',]
+  #all.out$avgCov = all.out$totalReads / all.out$totalSNPs
   
-  all.out$avgCov = all.out$totalReads / all.out$totalSNPs
-  
-  plotFun = function(noFrame=FALSE,noPlot=FALSE){
-    par(mar=c(1.5,2.3,0.2,0.2),xpd=T)
-    
-    hist(log10(all.out$totalReads),breaks = 50,freq = T,main = '',axes = F)
-    axis(1,at=c(1.6,2,3,4,5),labels = c('',2,3,4,5),las=1,pos = 0.1,tck=-0.02,cex.axis=0.7,lwd.ticks = 0.8,hadj = 0.5,padj = -2.0,lwd = 0.8)
-    axis(2,at=c(0,50,100,150),las=1,tck=-0.02,cex.axis=0.7,lwd.ticks = 0.8,hadj = 0.45,padj = 0.5,lwd = 0.8)
+  #plotFun = function(noFrame=FALSE,noPlot=FALSE){
+  #  par(mar=c(1.5,2.3,0.2,0.2),xpd=T)
+  #  
+  #  hist(log10(all.out$totalReads),breaks = 50,freq = T,main = '',axes = F)
+  #  axis(1,at=c(1.6,2,3,4,5),labels = c('',2,3,4,5),las=1,pos = 0.1,tck=-0.02,cex.axis=0.7,lwd.ticks = 0.8,hadj = 0.5,padj = -2.0,lwd = 0.8)
+  #  axis(2,at=c(0,50,100,150),las=1,tck=-0.02,cex.axis=0.7,lwd.ticks = 0.8,hadj = 0.45,padj = 0.5,lwd = 0.8)
     #axis(2,at=c(2000,2800),labels = c('',''),las=1,tck=-0.02,cex.axis=0.6,lwd.ticks = 0,hadj = 0.35,padj = 0.5,lwd = 0.8)
     
-    mtext(side=1,text = 'hSNPs Coverage (log10)',family='Helvetica',font = 1,cex = 0.8,line = 0.5)
-    mtext(side=2,text = '# Cells',family='Helvetica',font = 1,cex = 0.8,line = 1.5)
+  #  mtext(side=1,text = 'hSNPs Coverage (log10)',family='Helvetica',font = 1,cex = 0.8,line = 0.5)
+  #  mtext(side=2,text = '# Cells',family='Helvetica',font = 1,cex = 0.8,line = 1.5)
     
-  }
-  saveFig(file.path(res,paste0('hSNPcov_distr_tumourCellsonly')),plotFun,width = 2.1,height = 2.7,rawData = all.out)  
+  #}
+  #saveFig(file.path(res,paste0('hSNPcov_distr_tumourCellsonly')),plotFun,width = 2.1,height = 2.7,rawData = all.out)  
   
   plotFun = function(noFrame=FALSE,noPlot=FALSE){
-    par(mar=c(1.5,2.3,0.2,0.2),xpd=T)
-    
+    par(mar=c(1.2,2.5,0.5,1.5),xpd=T)
+    n_cells = n_distinct(all.out$cellID)
+    dat = hist(log10(all.out$totalReads),plot = F,breaks = 50)
     hist(log10(all.out$totalReads),breaks = 50,freq = T,main = '',axes = F)
-    axis(1,at=c(1,2,3,4,5),las=1,pos = 0.1,tck=-0.02,cex.axis=0.7,lwd.ticks = 0.8,hadj = 0.5,padj = -2.0,lwd = 0.8)
-    axis(2,at=c(0,1000,2000),las=1,tck=-0.02,cex.axis=0.7,lwd.ticks = 0.8,hadj = 0.45,padj = 0.5,lwd = 0.8)
-    axis(2,at=c(2000,2800),labels = c('',''),las=1,tck=-0.02,cex.axis=0.6,lwd.ticks = 0,hadj = 0.35,padj = 0.5,lwd = 0.8)
-    
-    mtext(side=1,text = 'hSNPs Coverage (log10)',family='Helvetica',font = 1,cex = 0.8,line = 0.5)
-    mtext(side=2,text = '# Cells',family='Helvetica',font = 1,cex = 0.8,line = 1.5)
-    
-    
+    axis(1,at=seq(round(min(dat$breaks)),round(max(dat$breaks))),las=1,pos = 0.05,tck=-0.02,cex.axis=0.7,lwd.ticks = 0.8,hadj = 0.5,padj = -2.5,lwd = 0.8)
+    axis(2,at=seq(0,round(max(dat$counts)),1000),las=1,tck=-0.02,cex.axis=0.7,lwd.ticks = 0.4,hadj = 0.45,padj = 0.5,lwd = 0.8)
+    #axis(2,at=c(2000,2800),labels = c('',''),las=1,tck=-0.02,cex.axis=0.6,lwd.ticks = 0,hadj = 0.35,padj = 0.5,lwd = 0.8)
+    title(sprintf('Heterozygous SNP coverage in %s cells',prettyNum(n_cells,big.mark = ',')),family='Helvetica',cex.main = 0.6)
+    mtext(side=1,text = 'hSNPs Coverage (log10)',family='Helvetica',font = 1,cex = 0.7,line = 0.2)
+    mtext(side=2,text = '# Cells',family='Helvetica',font = 1,cex = 0.7,line = 1.6)
     
   }
-  saveFig(file.path(res,paste0('hSNPcov_distr')),plotFun,width = 2.1,height = 2.7,rawData = all.out)  
+  saveFig(file.path(res,paste0('hSNPcov_distr')),plotFun,width = 2.7,height = 2.6,rawData = all.out)  
   
 }
 
@@ -1592,36 +1556,108 @@ saveFig(file.path(res,paste0('PD46693_MAplot')),plotFun,rawData = dd,width = 4,h
 
 
 
-# Plot Tumour bulkDNA BAF  
-refGenome = '/nfs/users/nfs_m/my4/Projects/FetalCN/Data/DNA/genomeDNA.fa'
-refGenome10X = '/nfs/users/nfs_m/my4/Projects/FetalCN/Data/scRNA/genomeRNA.fa'
-liftChain = '/nfs/users/nfs_m/my4/Projects/FetalCN/Data/hg19ToHg38_noChr.over.chain'
-gtf = '/nfs/users/nfs_m/my4/Projects/FetalCN/Data/gtf10X_GRCh38_120.gtf'
-txdb = makeTxDbFromGFF(gtf)
-gns = genes(txdb)
-nParallel=60
-setwd('/lustre/scratch117/casm/team274/mt22/CN_methods/alleleIntegrator_output/NB/')
-for(PDID in unique(projMani$PDID)){
-  message(sprintf('%s ....',PDID))
-  outDir = file.path('./',PDID)
-  if(!file.exists(outDir)){
-    print('Making new Dir')
-    dir.create(outDir)
+# Plot Tumour bulkDNA BAF #### 
+setwd('~/lustre_mt22/CN_methods/')
+#############
+# Libraries #
+#############
+library(alleleIntegrator)
+
+#########################
+# Set Global parameters #
+#########################
+tgtChrs=c(1:22) 
+minSegLen=1e6
+subCl.minSegLen=2e7
+skipIfExists = T
+# Import Manifest
+projMani = read_excel("../projectManifest.xlsx",sheet = "alleleIntegrator")
+mainDir = '~/lustre_mt22/CN_methods/revision_2204'
+
+
+refGenome = '/lustre/scratch119/realdata/mdt1/team78pipelines/reference/Human/GRCH37d5/genome.fa'
+nParallel=25
+
+#----------- Run AlleleIntegrator on NB dataset (5 samples)
+#----------------------------------------------------------- 
+for(tumourType in unique(projMani$TumourType)){
+  if(tumourType %in% c('Ewings','Wilms','ATRT')){
+    for(PDID in unique(projMani$PDID[projMani$TumourType == tumourType])){
+      message(sprintf('Generating BAF plot from bulkDNA for Sample %s - tumourType: %s',PDID,tumourType))
+      # Set output directory
+      outDir = file.path(mainDir,'alleleIntegrator_output',tumourType,PDID)
+      if(!file.exists(outDir)){
+        message(sprintf('[%s]: Cannot find output dir - Please check!...'))
+        next()
+      }
+      
+      # Set Sample specific params
+      donorMani = projMani[projMani$PDID == PDID,]
+      tumourDNA = unique(donorMani$tumourDNA[!is.na(donorMani$tumourDNA)])
+      patientDNA = unique(donorMani$patientDNA[!is.na(donorMani$patientDNA)])
+      
+      ######################
+      # Call heterozygous SNPs
+      hSNPs = findHetSNPs(patientDNA,refGenome,file.path(outDir,paste0(PDID,'_patient_hetSNPs.vcf')),nParallel=nParallel)
+      #Expectation is that we'll find ~ 3 million of them
+      message(sprintf("Found %s heterozygous SNPs",prettyNum(length(hSNPs),big.mark=',')))
+      
+      baf.out = generateCoverageAndBAF(BAM = tumourDNA,refGenome = refGenome,hSNPs=hSNPs,
+                                       outPath = file.path(outDir,paste0(PDID,'_cov_BAF.RDS')),nParallel=nParallel)
+      
+      plotFun = function(noFrame=T,noPlot=FALSE,minCoverage=10){
+        #Filter to just the ones that we trust
+        filt = baf.out[baf.out$coverage>=minCoverage,]
+        #Work out the chromosome boundaries
+        chrsToPlot=c(1:22)
+        chrs = chrsToPlot
+        chrLens = seqlengths(filt)
+        tmp = sapply(split(start(filt),as.character(seqnames(filt))),max)
+        chrLens[is.na(chrLens)] = tmp[names(chrLens)[is.na(chrLens)]]
+        chrLens = as.numeric(chrLens[chrs])
+        
+        
+        x = start(filt) +cumsum(c(0,chrLens))[match(as.character(seqnames(filt)),chrs)]
+        
+        # Subset randomly 50% of the points
+        set.seed(2397)
+        idx = sample(1:nrow(mcols(filt)), nrow(mcols(filt))/2, replace=FALSE)
+        filt.sub = filt[idx,]
+        
+        # BAF plot
+        par(mfrow=c(1,1),mar=c(2.1,4.1,1.1,1.1))
+        alpha = max(0.002,min(1,1e5/length(filt.sub)))
+        plot(x[idx],filt.sub$BAF,
+             col=rgb(0,0,0,alpha=alpha/2), 
+             cex=0.01,
+             las=2,
+             xaxt='n',
+             yaxt='n',
+             xlab='',
+             ylab='BAF',
+             xaxs='i',
+             yaxs='i',
+             ylim=c(0,1),
+             xlim=c(1,sum(chrLens)))
+        
+        #axis(side=1, at=cumsum(c(0,chrLens[-length(chrLens)]))+chrLens/2, labels = chrs)
+        axis(side=2, at=c(0,0.5,1),labels=c(0,0.5,1),las=1)
+        abline(v=cumsum(chrLens),col='lightgrey')
+        
+      }
+      
+      saveFig(file.path(res,paste0('BAF_',PDID,'_',tumourType)),plotFun,width = 5.8,height = 2.2,res=1000)
+    } 
   }
-  
-  # Set Sample specific params
-  donorMani = projMani[projMani$PDID == PDID,]
-  tumourDNA = unique(donorMani$tumourDNA[!is.na(donorMani$tumourDNA)])
-  patientDNA = unique(donorMani$patientDNA[!is.na(donorMani$patientDNA)])
-  
-  ######################
-  # Call and phase SNPs
-  hSNPs = findHetSNPs(patientDNA,refGenome,file.path(outDir,paste0(PDID,'_patient_hetSNPs.vcf')),nParallel=24)
-  #Expectation is that we'll find ~ 3 million of them
-  message(sprintf("Found %s heterozygous SNPs",prettyNum(length(hSNPs),big.mark=',')))
-  hSNPs = generateCoverageAndBAF(BAM = tumourDNA,refGenome = refGenome,hSNPs=hSNPs,outPath = paste0('/lustre/scratch117/casm/team274/mt22/CN_methods/',PDID,'_cov_BAF.RDS'),nParallel=24)
-  
 }
+
+
+  
+  
+  
+  
+  
+  
 
 
 baf.out = generateCoverageAndBAF(BAM = tumourDNA,refGenome = refGenome,hSNPs=hSNPs,outPath = paste0('/lustre/scratch117/casm/team274/mt22/CN_methods/',PD46693,'_cov_BAF.RDS',nParallel=24)

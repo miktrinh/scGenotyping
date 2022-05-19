@@ -1,5 +1,6 @@
 # Run Copy Kat
 setwd('/lustre/scratch117/casm/team274/mt22/CN_methods/CopyKAT_output/')
+
 #############
 # Libraries #
 #############
@@ -82,8 +83,6 @@ View(projMani)
 REF_output_list = runCopyKat(seuratObject = nb.srat,ident = 'PD_ID',title = 'nb.CKnoREF')
 srat=REF_output_list[[1]]
 copykat.results = REF_output_list[[2]]
-
-
 
 
 
