@@ -7,7 +7,7 @@ setwd('~/lustre_mt22/CN_methods/revision_2204_v2/')
 library(tidyverse)
 library(readxl)
 library(GenomicRanges)
-source('~/lustre_mt22/CN_methods/scripts/finalScripts/misc.R')
+source('~/lustre_mt22/CN_methods/scripts/finalScripts/R/misc.R')
 
 #########################
 # Set Global parameters #
@@ -470,8 +470,6 @@ for(method in c('CK',"inferCNV")){
   }
   saveFig(file.path(outdir,paste0('allSamples_',method,'_exprDistr')),plotFun,width = 2.4,height = 2.4,rawData = out_meanScore_sub) 
 }
-
-
 
 
 

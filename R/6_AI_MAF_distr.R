@@ -9,7 +9,7 @@ setwd('~/lustre_mt22/CN_methods/revision_2204_v2/')
 library(tidyverse)
 library(readxl)
 library(alleleIntegrator)
-source('~/lustre_mt22/CN_methods/scripts/finalScripts/misc.R')
+source('~/lustre_mt22/CN_methods/scripts/finalScripts/R/misc.R')
 
 
 #########################
