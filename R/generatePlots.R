@@ -772,20 +772,22 @@ fig1d_pd35918_hSNP_baf = function(){
   message(sprintf("Found %s heterozygous SNPs",prettyNum(length(hSNPs),big.mark=',')))
   
   baf.out = generateCoverageAndBAF(BAM = tumourDNA,refGenome = refGenome,#hSNPs=hSNPs,
-                                   outPath = file.path(outDir,paste0(PDID,'_cov_BAF_SNPs1k.tsv')),nParallel=nParallel)
+                                   outPath = file.path(outDir,paste0(PDID,'_cov_BAF_SNPs1k_v2.tsv')),nParallel=nParallel)
   minCoverage=10
   #Filter to just the ones that we trust
   filt = baf.out[baf.out$coverage>=minCoverage,]
   # Subset randomly 50% of the points
   set.seed(2397)
   idx = sample(1:nrow(mcols(filt)), nrow(mcols(filt))/4, replace=FALSE)
+  idx = idx[order(idx,decreasing = F)]
   filt.sub = filt[idx,]
+  filt.sub$hSNP_pos = paste0(seqnames(filt.sub),':',start(filt.sub))
   dd = as.data.frame(mcols(filt.sub))
-  dd$hSNP_pos = rownames(dd)
-  dd = dd[,c('BAF','coverage', 'isHet','logR','A','C','G','T','Tot','refCnts','altCnts')]
+  dd = dd[,c('hSNP_pos','BAF','coverage', 'isHet','logR','A','C','G','T','Tot','refCnts','altCnts')]
+  
   plotFun = function(noFrame=F,noPlot=FALSE,minCoverage=10){
     #Filter to just the ones that we trust
-    filt = baf.out[baf.out$coverage>=minCoverage,]
+    #filt = baf.out[baf.out$coverage>=minCoverage,]
     #Work out the chromosome boundaries
     chrsToPlot=c(1:22)
     chrs = chrsToPlot
@@ -798,9 +800,9 @@ fig1d_pd35918_hSNP_baf = function(){
     x = start(filt) +cumsum(c(0,chrLens))[match(as.character(seqnames(filt)),chrs)]
     
     # Subset randomly 50% of the points
-    set.seed(2397)
-    idx = sample(1:nrow(mcols(filt)), nrow(mcols(filt))/4, replace=FALSE)
-    filt.sub = filt[idx,]
+    #set.seed(2397)
+    #idx = sample(1:nrow(mcols(filt)), nrow(mcols(filt))/4, replace=FALSE)
+    #filt.sub = filt[idx,]
     
     # BAF plot
     par(mfrow=c(1,1),mar=c(2.1,4.1,1.1,1.1))
@@ -1682,16 +1684,20 @@ fig3d_pd46693_hSNP_baf = function(){
   minCoverage=10
   #Filter to just the ones that we trust
   filt = baf.out[baf.out$coverage>=minCoverage,]
+  # Filter for chromosome
+  filt = filt[seqnames(filt) %in% c(1:22)]
   # Subset randomly 50% of the points
   set.seed(2397)
   idx = sample(1:nrow(mcols(filt)), nrow(mcols(filt))/4, replace=FALSE)
+  idx = idx[order(idx,decreasing = F)]
   filt.sub = filt[idx,]
+  filt.sub$hSNP_pos = paste0(seqnames(filt.sub),':',start(filt.sub))
   dd = as.data.frame(mcols(filt.sub))
-  dd$hSNP_pos = rownames(dd)
-  dd = dd[,c('BAF','coverage', 'isHet','logR','A','C','G','T','Tot','refCnts','altCnts')]
+  dd = dd[,c('hSNP_pos','BAF','coverage', 'isHet','logR','A','C','G','T','Tot','refCnts','altCnts')]
+  
   plotFun = function(noFrame=F,noPlot=FALSE,minCoverage=10){
     #Filter to just the ones that we trust
-    filt = baf.out[baf.out$coverage>=minCoverage,]
+    #filt = baf.out[baf.out$coverage>=minCoverage,]
     #Work out the chromosome boundaries
     chrsToPlot=c(1:22)
     chrs = chrsToPlot
@@ -1704,9 +1710,9 @@ fig3d_pd46693_hSNP_baf = function(){
     x = start(filt) +cumsum(c(0,chrLens))[match(as.character(seqnames(filt)),chrs)]
     
     # Subset randomly 50% of the points
-    set.seed(2397)
-    idx = sample(1:nrow(mcols(filt)), nrow(mcols(filt))/4, replace=FALSE)
-    filt.sub = filt[idx,]
+    #set.seed(2397)
+    #idx = sample(1:nrow(mcols(filt)), nrow(mcols(filt))/4, replace=FALSE)
+    #filt.sub = filt[idx,]
     
     # BAF plot
     par(mfrow=c(1,1),mar=c(2.1,4.1,1.1,1.1))
@@ -1729,7 +1735,7 @@ fig3d_pd46693_hSNP_baf = function(){
     
   }
   
-  saveFig(file.path(plotDir,paste0('Fig1d_dnaBAF_',PDID,'_',tumourType)),plotFun,width = 5.8,height = 2.2,res=1000,rawData = dd)
+  saveFig(file.path(plotDir,paste0('Fig3d_dnaBAF_',PDID,'_',tumourType)),plotFun,width = 5.8,height = 2.2,res=1000,rawData = dd)
 } 
 
 
