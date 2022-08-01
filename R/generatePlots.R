@@ -778,7 +778,7 @@ fig1d_pd35918_hSNP_baf = function(){
   filt = baf.out[baf.out$coverage>=minCoverage,]
   # Subset randomly 50% of the points
   set.seed(2397)
-  idx = sample(1:nrow(mcols(filt)), nrow(mcols(filt))/4, replace=FALSE)
+  idx = sample(1:nrow(mcols(filt)), nrow(mcols(filt))/10, replace=FALSE)
   idx = idx[order(idx,decreasing = F)]
   filt.sub = filt[idx,]
   filt.sub$hSNP_pos = paste0(seqnames(filt.sub),':',start(filt.sub))
@@ -1563,6 +1563,8 @@ fig3c_MAF_distr_AI = function(){
     mtext(side=1,text = 'Maternal Alelle Frequency per 5Mb',family='Helvetica',font = 1,cex = 0.7,line = 0.4)
     mtext(side=2,text = 'Density',family='Helvetica',font = 1,cex = 0.7,line = 0.4)
   }
+  
+  maf_allSamples = maf_allSamples[]
   saveFig(file.path(plotDir,'Fig3c_allSamples_AI_MAFdistr'),plotFun,width = 2.4,height = 2.4,rawData = maf_allSamples) 
   
 }
