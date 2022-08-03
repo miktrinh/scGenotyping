@@ -1,4 +1,5 @@
 # Precise identification of cancer cells from allelic imbalances in single cell transcriptomes
+[![DOI](https://zenodo.org/badge/429834688.svg)](https://zenodo.org/badge/latestdoi/429834688)
 
 This repository contains all R scripts to perform the analysis in our manuscript, ["Precise identification of cancer cells from allelic imbalances in single cell transcriptomes."](https://www.biorxiv.org/content/10.1101/2021.11.25.469995v1)
 
